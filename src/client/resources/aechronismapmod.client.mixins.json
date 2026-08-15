@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "com.dcfiendish.aechronismapmod.client.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"AechronisDrawManagerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

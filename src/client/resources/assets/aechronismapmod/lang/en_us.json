@@ -1,0 +1,41 @@
+{
+  "text.autoconfig.aechronismapmod.title": "Xaeros Minimap Fairplay Nation Overlay Settings",
+
+  "text.autoconfig.aechronismapmod.option.showEverything": "Show Everything",
+  "text.autoconfig.aechronismapmod.option.showEverything.tooltip": "Master toggle - turn off to hide all rendering while data still tracks in the background (useful for screenshare safety)",
+
+  "text.autoconfig.aechronismapmod.option.showNationFills": "Show Nation Fills",
+  "text.autoconfig.aechronismapmod.option.showNationFills.tooltip": "Toggle nation territory color overlays on/off",
+  "text.autoconfig.aechronismapmod.option.nationFillOpacity": "Nation Fill Opacity (%)",
+  "text.autoconfig.aechronismapmod.option.nationFillOpacity.tooltip": "Opacity of nation territory color fills (0 = invisible, 100 = fully opaque)",
+
+  "text.autoconfig.aechronismapmod.option.showNodeBorders": "Show Node Borders",
+  "text.autoconfig.aechronismapmod.option.showNodeBorders.tooltip": "Toggle resource node territory borders on/off",
+  "text.autoconfig.aechronismapmod.option.whiteBorders": "White Node Borders",
+  "text.autoconfig.aechronismapmod.option.whiteBorders.tooltip": "Override all node border colors to white",
+
+  "text.autoconfig.aechronismapmod.option.occupiedDiagonalWidth": "Occupied Diagonal Width",
+  "text.autoconfig.aechronismapmod.option.occupiedDiagonalWidth.tooltip": "Line width of the diagonal marking captured (occupied-but-not-annexed) TERRITORIES (whole nodes), drawn in the occupier's nation color",
+
+  "text.autoconfig.aechronismapmod.option.showWarStripes": "Show War Stripes",
+  "text.autoconfig.aechronismapmod.option.showWarStripes.tooltip": "Toggle the X-stripe marker on individual CHUNKS captured within the last 90 seconds, drawn in the capturing nation's color",
+  "text.autoconfig.aechronismapmod.option.warStripeWidth": "War Stripe Width",
+  "text.autoconfig.aechronismapmod.option.warStripeWidth.tooltip": "Line width of the post-capture chunk war stripe",
+
+  "text.autoconfig.aechronismapmod.option.showUnderAttackStripes": "Show Under-Attack Stripes",
+  "text.autoconfig.aechronismapmod.option.showUnderAttackStripes.tooltip": "Toggle the diagonal marker on individual CHUNKS with a flag currently planted (an attack in progress), drawn in the attacker's nation color",
+  "text.autoconfig.aechronismapmod.option.underAttackStripeWidth": "Under-Attack Stripe Width",
+  "text.autoconfig.aechronismapmod.option.underAttackStripeWidth.tooltip": "Line width of the under-attack chunk stripe",
+
+  "text.autoconfig.aechronismapmod.option.showNodeLabels": "Show Node Labels",
+  "text.autoconfig.aechronismapmod.option.showNodeLabels.tooltip": "Toggle resource node text labels on/off",
+
+  "text.autoconfig.aechronismapmod.option.showTownLabels": "Show Town Labels",
+  "text.autoconfig.aechronismapmod.option.showTownLabels.tooltip": "Toggle town name text labels on/off",
+
+  "text.autoconfig.aechronismapmod.option.showNationLabels": "Show Nation Labels",
+  "text.autoconfig.aechronismapmod.option.showNationLabels.tooltip": "Toggle nation name labels (shown larger, at each nation's capital) on/off",
+
+  "text.autoconfig.aechronismapmod.option.showPorts": "Show Ports",
+  "text.autoconfig.aechronismapmod.option.showPorts.tooltip": "Toggle port markers (name labels, colored by teleport group) on/off"
+}

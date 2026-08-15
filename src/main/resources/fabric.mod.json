@@ -1,0 +1,35 @@
+{
+	"schemaVersion": 1,
+	"id": "aechronismapmod",
+	"version": "${version}",
+	"name": "Xaeros Minimap Fairplay Nation Overlay",
+	"description": "Live nation territory overlay for the Aechronis server.",
+	"authors": [
+		"DCFiendish"
+	],
+	"license": "CC0-1.0",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"com.dcfiendish.aechronismapmod.AechronisMapMod"
+		],
+		"modmenu": [
+			"com.dcfiendish.aechronismapmod.AechronisModMenu"
+		]
+	},
+	"mixins": [
+		"aechronismapmod.mixins.json",
+		"aechronismapmod.client.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*",
+		"xaeroplus": "*",
+		"cloth-config": "*"
+	},
+	"recommends": {
+		"modmenu": "*"
+	}
+}

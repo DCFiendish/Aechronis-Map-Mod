@@ -1,0 +1,74 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = "Aechronis Fairplay Nation Overlay"
+}
+
+repositories {
+	maven { url "https://maven.fabricmc.net/" }
+	maven { url "https://api.modrinth.com/maven" }
+	maven { url "https://chocolateminecraft.com/maven" }
+}
+
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"aechronis-map-mod" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	implementation "maven.modrinth:xaeroplus:2.35.1+fabric-26.2"
+	compileOnly "xaero.map:xaeroworldmap-fabric-26.2:1.44.2"
+	compileOnly "xaero.minimap:xaerominimap-fabric-26.2:26.4.2"
+	compileOnly "xaero.lib:xaerolib-fabric-26.2:1.7.1"
+	implementation "maven.modrinth:cloth-config:26.2.155+fabric"
+	implementation "maven.modrinth:modmenu:20.0.1"
+}
+
+processResources {
+	inputs.property "version", project.version
+	filesMatching("fabric.mod.json") {
+		expand "version": inputs.properties.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+}
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+	inputs.property "projectName", project.name
+	from("LICENSE") {
+		rename { "${it}_${project.name}" }
+	}
+}
+
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+}
