@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"id": "aechronismapmod",
 	"version": "${version}",
-	"name": "Xaeros Minimap Fairplay Nation Overlay",
+	"name": "Aechronis Nation Overlay",
 	"description": "Live nation territory overlay for the Aechronis server.",
 	"authors": [
 		"DCFiendish"

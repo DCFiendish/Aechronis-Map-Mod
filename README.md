@@ -1,4 +1,4 @@
-# Aechronis Map Mod
+# Aechronis Nation Overlay
 
 A Fabric client mod that adds a live nation/territory overlay to Xaero's
 Minimap and World Map, built for the [Nodes](https://github.com/Aechronis/nodes)
@@ -8,6 +8,11 @@ town/nation plugin running on [Aechronis](https://aechronis.net/)
 sync in near real time — nation-colored territory fills, resource node
 borders/labels, town and nation name labels, port markers, and live war
 visuals during a siege.
+
+**This mod only does anything on the Aechronis server.** It checks the
+server address on join and stays fully inert (no rendering, no network
+requests) everywhere else, including singleplayer — safe to keep installed
+alongside other servers/modpacks.
 
 ## Features
 
