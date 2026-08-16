@@ -79,6 +79,15 @@ public class AechronisDataFetcher {
         }
     }
 
+    // world.json's territoryChunkMap/nodeBorderLines are what drive node borders AND the
+    // nation chunk fill (see AechronisMapData.rebuildGeometry/applyTerritoryColor) — unlike
+    // nation/town labels, which the separate 60s fetchTownsJson() poll rebuilds independently
+    // from towns.json alone. Without a retry here, a single transient failure on this one-shot
+    // fetch (network not fully up 2s post-join, a momentary map-server hiccup) would leave
+    // borders and chunk fills permanently empty for the rest of the session, even though
+    // labels keep working fine off the recurring towns.json poll.
+    private static final long WORLD_FETCH_RETRY_DELAY_SECONDS = 10;
+
     private void fetchWorldAndTerritories() {
         try {
             System.out.println("[Aechronis] Fetching world.json and towns.json for territory data...");
@@ -90,7 +99,9 @@ public class AechronisDataFetcher {
             mapData.loadTownsData(townsJson, townsStr);
             System.out.println("[Aechronis] World and territory data loaded.");
         } catch (Exception e) {
-            System.out.println("[Aechronis] World fetch error: " + e.getMessage());
+            System.out.println("[Aechronis] World fetch error: " + e.getMessage() +
+                    " — retrying in " + WORLD_FETCH_RETRY_DELAY_SECONDS + "s.");
+            scheduler.schedule(this::fetchWorldAndTerritories, WORLD_FETCH_RETRY_DELAY_SECONDS, TimeUnit.SECONDS);
         }
     }
 
