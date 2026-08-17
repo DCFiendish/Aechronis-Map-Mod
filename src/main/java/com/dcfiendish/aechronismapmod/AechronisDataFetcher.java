@@ -19,11 +19,15 @@ public class AechronisDataFetcher {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
-    private static final String MAP_BASE      = "https://map.aechronis.net/";
-    private static final String TOWNS_URL     = MAP_BASE + "nodes/towns.json";
-    private static final String WORLD_URL     = MAP_BASE + "nodes/world.json";
-    private static final String WAR_URL       = MAP_BASE + "nodes/war.json";
-    private static final String BUILDINGS_URL = MAP_BASE + "nodes/buildings.json";
+    // TEST-FORK BRANCH: pointed at the private fork server's map data instead of the
+    // live map.aechronis.net endpoints, so buildings.json data (factory/train_station
+    // types) can actually be exercised before it ever appears on the real server. Do
+    // not merge this branch into master.
+    private static final String MAP_BASE      = "http://150.136.235.233/nodes-map/";
+    private static final String TOWNS_URL     = MAP_BASE + "towns.json";
+    private static final String WORLD_URL     = MAP_BASE + "world.json";
+    private static final String WAR_URL       = MAP_BASE + "war.json";
+    private static final String BUILDINGS_URL = MAP_BASE + "buildings.json";
 
     public AechronisMapData mapData;
 
