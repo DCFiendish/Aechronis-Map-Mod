@@ -280,21 +280,26 @@ public class AechronisMapData {
                 if (!clipped.isEmpty()) newTerritoryDiagonals.put(tid, clipped);
             }
 
-            // Collect node type names. Border still renders for ANY node-bearing
-            // territory (including basic-only) — unchanged. The LABEL, however, only
-            // shows "specific resource" nodes: "basic" is filtered out entirely, and
-            // a territory whose only node type is basic gets no label at all.
+            // Collect node type names — used for the LABEL only (see below). Border
+            // rendering does NOT depend on this: confirmed against the official web
+            // map (nodes-map/js/app.js buildOutlineSegments()), which draws an outline
+            // around every configured territory unconditionally, and against live
+            // production world.json, where every territory's "nodes" array is
+            // currently empty — gating borders on it (as this used to) meant borders
+            // never rendered for ANY territory, ever.
             List<String> nodeTypeNames = new ArrayList<>();
             for (JsonElement n : nodes) {
                 if (!n.isJsonNull()) nodeTypeNames.add(n.getAsString());
             }
 
-            if (!chunkPairs.isEmpty() && !nodeTypeNames.isEmpty()) {
+            if (!chunkPairs.isEmpty()) {
                 List<int[]> borders = getBorderLines(chunkPairs);
                 for (int[] line : borders) {
                     newBorderLines.add(new NodeBorderLine(line[0], line[1], line[2], line[3]));
                 }
+            }
 
+            if (!chunkPairs.isEmpty() && !nodeTypeNames.isEmpty()) {
                 // Label-only filtering: drop "basic", keep real resources in order.
                 List<String> labelTypes = new ArrayList<>();
                 for (String t : nodeTypeNames) {
