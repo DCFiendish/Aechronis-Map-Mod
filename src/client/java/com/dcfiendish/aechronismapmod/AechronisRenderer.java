@@ -9,6 +9,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import xaeroplus.feature.render.DrawFeature;
 import xaeroplus.feature.render.DrawFeatureFactory;
+import xaeroplus.feature.render.ellipse.Ellipse;
 import xaeroplus.feature.render.line.Line;
 import xaeroplus.feature.render.text.Text;
 import xaeroplus.module.Module;
@@ -20,6 +21,10 @@ import java.util.Map;
 
 public class AechronisRenderer extends Module {
     private static final int  DEFAULT_NODE_COLOR    = 0x000000;
+    // Placeholder building marker ring — radius/thickness picked purely for visibility
+    // against the chunk grid (16 blocks/chunk); revisit once real icon art replaces this.
+    private static final int   BUILDING_MARKER_RADIUS    = 20;
+    private static final float BUILDING_MARKER_THICKNESS = 0.3f;
     // Every overlay element except the nation fill renders fully opaque, always —
     // opacity is only user-adjustable for the nation fill (see AechronisConfig).
     private static final int  FULL_ALPHA            = 255;
@@ -65,6 +70,10 @@ public class AechronisRenderer extends Module {
     private int lastNationLabelCount = -1;
     private Long2ObjectOpenHashMap<Text> cachedPortTexts = new Long2ObjectOpenHashMap<>();
     private int lastPortCount = -1;
+    // Placeholder building markers (colored ring per type — see AechronisMapData.buildingColor()).
+    // Rebuilt on the same trigger as the port text cache above (mapData.ports size change).
+    private Object2IntOpenHashMap<Ellipse> cachedBuildingMarkers = new Object2IntOpenHashMap<>();
+    private int lastBuildingMarkerCount = -1;
 
     // Track last config state to detect changes
     private int lastNationAlpha      = -1;
@@ -166,6 +175,18 @@ public class AechronisRenderer extends Module {
                 DrawFeatureFactory.text(
                         "AechronisPortLabels",
                         this::getPortTexts
+                )
+        );
+        // Placeholder building markers — a colored ring per building, since Aechronis's
+        // map server has no icon graphics to reuse yet (see AechronisMapData.buildingColor()
+        // javadoc). Swap for real textured icons once artwork exists.
+        ourFeatures.add(
+                DrawFeatureFactory.multiColorEllipses(
+                        "AechronisBuildingMarkers",
+                        this::getBuildingMarkers,
+                        (ellipse, value) -> value,
+                        () -> BUILDING_MARKER_THICKNESS,
+                        1000
                 )
         );
     }
@@ -422,6 +443,29 @@ public class AechronisRenderer extends Module {
             newCache.put(key, new Text(p.name, p.x, p.z, textColor, 0.4f));
         }
         cachedPortTexts = newCache;
+    }
+
+    // ---- Building markers — placeholder colored ring per type, cached on data change ----
+    private Object2IntMap<Ellipse> getBuildingMarkers(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
+        AechronisConfig cfg = AechronisConfig.get();
+        if (!cfg.showEverything) return new Object2IntOpenHashMap<>();
+        if (!cfg.showPorts) return new Object2IntOpenHashMap<>();
+        if (dimension != ChunkUtils.getActualDimension()) return new Object2IntOpenHashMap<>();
+
+        if (mapData.ports.size() != lastBuildingMarkerCount) {
+            rebuildBuildingMarkersCache();
+            lastBuildingMarkerCount = mapData.ports.size();
+        }
+        return cachedBuildingMarkers;
+    }
+
+    private void rebuildBuildingMarkersCache() {
+        Object2IntOpenHashMap<Ellipse> newCache = new Object2IntOpenHashMap<>(mapData.ports.size());
+        for (AechronisMapData.PortInfo p : mapData.ports) {
+            int color = withAlpha(p.color, FULL_ALPHA);
+            newCache.put(new Ellipse(p.x, p.z, BUILDING_MARKER_RADIUS, BUILDING_MARKER_RADIUS), color);
+        }
+        cachedBuildingMarkers = newCache;
     }
 
     // ---- Helpers ----

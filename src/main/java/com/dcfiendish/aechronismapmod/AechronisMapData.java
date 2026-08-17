@@ -198,11 +198,18 @@ public class AechronisMapData {
         System.out.println("[Aechronis] Loaded " + newPorts.size() + " buildings.");
     }
 
-    /** Marker color per building `type`. Only "port" is currently rendered on the map;
-     *  other recognized-in-the-future types (factory, train station) can be added here
-     *  once the mod actually draws them — returns -1 for anything not yet supported. */
+    /** Marker color per building `type`. Placeholder colors only — Aechronis's map
+     *  server has no icon graphics of its own to reuse (confirmed: its web map draws
+     *  markers as WebGL/canvas shapes, not image files), so until real icon art
+     *  exists, each type just gets a distinct colored ring (see AechronisRenderer's
+     *  building-marker ellipse feature). "factory"/"train_station" have never
+     *  actually appeared in live buildings.json (only "port" has so far) — their
+     *  exact type-string spelling is unconfirmed, best guess from the schema. Returns
+     *  -1 for anything unrecognized, which is silently skipped by loadBuildingsData(). */
     private static int buildingColor(String type) {
-        if ("port".equalsIgnoreCase(type)) return 0x00CCFF;
+        if ("port".equalsIgnoreCase(type)) return 0x00CCFF; // cyan
+        if ("factory".equalsIgnoreCase(type)) return 0xFF8800; // orange
+        if ("train_station".equalsIgnoreCase(type) || "train station".equalsIgnoreCase(type)) return 0xAA66FF; // purple
         return -1;
     }
 
