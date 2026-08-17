@@ -645,20 +645,24 @@ public class AechronisMapData {
             if (resolvedColor != null) lastTerritoryColor.put(tid, resolvedColor);
         }
 
-        // Captured/occupied set + colors — JSON poll is authoritative. retainAll+addAll
-        // (instead of clear()+addAll) avoids a window where the set is briefly empty
-        // while the renderer might be reading it on another thread.
-        // NOTE: territories held by the grace window above intentionally survive this
-        // retainAll, because they're STILL in capturedTerritoryIds after the loop
-        // above (grace-window skip continue'd without touching them). If the server
-        // has NOT caught up, JSON still shows them as captured too, so newCapturedFromJson
-        // contains them → retainAll leaves them alone → no flicker. If the server HAS
-        // caught up mid-grace, the grace window will expire naturally on a later poll
-        // and the transition detection will fire correctly then.
+        // Captured/occupied set + colors — JSON poll is authoritative, EXCEPT for
+        // territories still inside their chat-flip grace window: retaining only against
+        // newCapturedFromJson unconditionally evicted those the moment a poll ran before
+        // the server's JSON caught up (previously assumed JSON always still showed them
+        // as captured mid-grace — false whenever the JSON genuinely hasn't caught up yet,
+        // which is exactly what "hasn't caught up" means), clearing the occupied diagonal
+        // well before CHAT_FLIP_GRACE_MS elapses. Explicitly protect anything still in
+        // its grace window so it survives this poll regardless of what the JSON says.
+        Set<String> protectedFromEviction = new HashSet<>(newCapturedFromJson);
+        for (Map.Entry<String, Long> entry : chatFlipTimestamps.entrySet()) {
+            if (now - entry.getValue() < CHAT_FLIP_GRACE_MS) protectedFromEviction.add(entry.getKey());
+        }
+        // retainAll+addAll (instead of clear()+addAll) avoids a window where the set is
+        // briefly empty while the renderer might be reading it on another thread.
         boolean occupiedSetChanged = !this.capturedTerritoryIds.equals(newCapturedFromJson);
-        this.capturedTerritoryIds.retainAll(newCapturedFromJson);
+        this.capturedTerritoryIds.retainAll(protectedFromEviction);
         this.capturedTerritoryIds.addAll(newCapturedFromJson);
-        this.territoryDiagonalColors.keySet().retainAll(newCapturedFromJson);
+        this.territoryDiagonalColors.keySet().retainAll(protectedFromEviction);
         for (String tid : newCapturedFromJson) {
             Integer color = newDiagonalColors.get(tid);
             if (color != null) this.territoryDiagonalColors.put(tid, color);
