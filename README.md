@@ -1,6 +1,6 @@
 # Aechronis Nation Overlay
 
-A Fabric client mod that adds a live nation/territory overlay to Xaero's
+A Fabric client mod that adds a live nation overlay to Xaero's
 Minimap and World Map, built for the [Nodes](https://github.com/Aechronis/nodes)
 town/nation plugin running on [Aechronis](https://aechronis.net/)
 (`play.aechronis.net`). It polls the server's public map-data endpoints
