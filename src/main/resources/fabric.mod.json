@@ -8,6 +8,7 @@
 		"DCFiendish"
 	],
 	"license": "CC0-1.0",
+	"icon": "aechronismapmod/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"client": [

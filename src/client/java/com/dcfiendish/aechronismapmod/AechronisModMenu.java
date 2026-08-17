@@ -5,8 +5,8 @@ import com.terraformersmc.modmenu.api.ModMenuApi;
 import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.ConfigManager;
 import me.shedaniel.autoconfig.gui.ConfigScreenProvider;
-import me.shedaniel.autoconfig.gui.registry.ComposedGuiRegistryAccess;
-import me.shedaniel.autoconfig.gui.registry.DefaultGuiRegistryAccess;
+import me.shedaniel.autoconfig.gui.DefaultGuiProviders;
+import me.shedaniel.autoconfig.gui.DefaultGuiTransformers;
 import me.shedaniel.autoconfig.gui.registry.GuiRegistry;
 
 public class AechronisModMenu implements ModMenuApi {
@@ -16,17 +16,22 @@ public class AechronisModMenu implements ModMenuApi {
         // API — building the screen directly via ConfigScreenProvider (what that helper did
         // internally) is now the mod's own responsibility.
         //
-        // A bare `new GuiRegistry()` is EMPTY — no field-type-to-widget providers registered
-        // (confirmed against cloth-config-26.2.155+fabric bytecode: its constructor only
-        // allocates empty maps). Without DefaultGuiRegistryAccess composed in, every field in
-        // AechronisConfig (booleans, ints, floats) has no provider to turn it into a widget,
-        // so the screen renders with no controls. The removed AutoConfig.getConfigScreen()
-        // always composed a DefaultGuiRegistryAccess in — this mirrors that.
+        // A bare `new GuiRegistry()` is EMPTY — no field-type-to-widget providers registered.
+        // DefaultGuiRegistryAccess is NOT a source of default providers despite its name —
+        // confirmed against cloth-config-26.2.155+fabric bytecode, its get() unconditionally
+        // logs "No GUI provider registered for field ..." and returns an empty list; it's a
+        // terminal fallback for reporting an unhandled field, not a registry of defaults. The
+        // actual default providers (checkbox for boolean, slider/textfield for int/float,
+        // dropdown for enum, etc.) are populated by DefaultGuiProviders.apply(GuiRegistry) /
+        // DefaultGuiTransformers.apply(GuiRegistry), which is what the removed
+        // AutoConfig.getConfigScreen() helper called internally.
         return parent -> {
             @SuppressWarnings("unchecked")
             ConfigManager<AechronisConfig> manager =
                     (ConfigManager<AechronisConfig>) AutoConfig.getConfigHolder(AechronisConfig.class);
-            var registry = new ComposedGuiRegistryAccess(new GuiRegistry(), new DefaultGuiRegistryAccess());
+            GuiRegistry registry = new GuiRegistry();
+            DefaultGuiProviders.apply(registry);
+            DefaultGuiTransformers.apply(registry);
             return new ConfigScreenProvider<>(manager, registry, parent).get();
         };
     }
