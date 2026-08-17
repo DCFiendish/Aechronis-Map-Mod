@@ -5,11 +5,15 @@ import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.world.level.ChunkPos;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AechronisMapData {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
     // ── Nation fill chunk colors ────────────────────────────────────────────
     // NOT volatile-swapped wholesale anymore — mutated IN PLACE, incrementally,
@@ -195,7 +199,7 @@ public class AechronisMapData {
         }
 
         this.ports = newPorts;
-        System.out.println("[Aechronis] Loaded " + newPorts.size() + " buildings.");
+        LOGGER.info("Loaded {} buildings.", newPorts.size());
     }
 
     /** Marker color per building `type`. Placeholder colors only — Aechronis's map
@@ -322,9 +326,8 @@ public class AechronisMapData {
         this.coreChunkMap       = newCoreChunkMap;
         this.territoryDiagonals = newTerritoryDiagonals;
 
-        System.out.println("[Aechronis] Geometry built (once): " + newTerritoryChunkMap.size() +
-                " territories, " + newBorderLines.size() + " node border lines, " +
-                newLabelInfos.size() + " node labels.");
+        LOGGER.info("Geometry built (once): {} territories, {} node border lines, {} node labels.",
+                newTerritoryChunkMap.size(), newBorderLines.size(), newLabelInfos.size());
     }
 
     /**
@@ -529,7 +532,7 @@ public class AechronisMapData {
             // Defensive only — should never happen in practice, since the fetcher's
             // single-thread scheduler guarantees loadWorldData() already ran before any
             // loadTownsData() call. Kept in case the fetch order ever changes.
-            System.out.println("[Aechronis] Geometry not built yet, skipping ownership diff this poll.");
+            LOGGER.warn("Geometry not built yet, skipping ownership diff this poll.");
             return;
         }
 
@@ -672,7 +675,7 @@ public class AechronisMapData {
                 skippedGrace + " held by chat-flip grace, " +
                 skippedOccupied + " held as occupied (two-phase), " +
                 newCapturedFromJson.size() + " captured/occupied territories.";
-        System.out.println("[Aechronis] " + pollSummary);
+        LOGGER.info(pollSummary);
         AechronisWarCapture.logState(pollSummary); // no-op unless AechronisWarCapture.ENABLED
     }
 
@@ -802,7 +805,7 @@ public class AechronisMapData {
     public void captureTerritory(String tid, String capturingPlayerName) {
         Set<Long> chunks = territoryChunkMap.get(tid);
         if (chunks == null) {
-            System.out.println("[Aechronis] captureTerritory: no chunks found for tid=" + tid);
+            LOGGER.warn("captureTerritory: no chunks found for tid={}", tid);
             return;
         }
         ResolvedNation resolved = resolvePlayerNation(capturingPlayerName, rgb(200, 200, 200));
@@ -824,7 +827,7 @@ public class AechronisMapData {
 
         String summary = "captureTerritory: marked tid=" + tid + " occupied by " +
                 (nation != null ? nation : capturingPlayerName) + " (base color unchanged; diagonal color set)";
-        System.out.println("[Aechronis] " + summary);
+        LOGGER.info(summary);
         AechronisWarCapture.logState(summary); // no-op unless AechronisWarCapture.ENABLED
     }
 
@@ -855,7 +858,7 @@ public class AechronisMapData {
 
         String summary = "liberateTerritory: tid=" + tid + " restored to " +
                 (nation != null ? nation : liberatingPlayerName) + " (occupied marker cleared)";
-        System.out.println("[Aechronis] " + summary);
+        LOGGER.info(summary);
         AechronisWarCapture.logState(summary); // no-op unless AechronisWarCapture.ENABLED
     }
 

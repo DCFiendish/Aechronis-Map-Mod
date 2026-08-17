@@ -4,8 +4,12 @@ import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AechronisMapMod implements ClientModInitializer {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
 	public static AechronisMapData mapData;
 	private static AechronisDataFetcher fetcher;
@@ -14,7 +18,7 @@ public class AechronisMapMod implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
-		System.out.println("[Aechronis] Initializing...");
+		LOGGER.info("Initializing...");
 
 		// Register config
 		AutoConfig.register(AechronisConfig.class, GsonConfigSerializer::new);
@@ -43,10 +47,10 @@ public class AechronisMapMod implements ClientModInitializer {
 			var serverData = client.getCurrentServer();
 			String serverAddress = serverData != null ? serverData.ip : null;
 			if (serverAddress == null || !serverAddress.toLowerCase().contains("aechronis.net")) {
-				System.out.println("[Aechronis] Not connected to Aechronis (address=" + serverAddress + "), mod inactive.");
+				LOGGER.info("Not connected to Aechronis (address={}), mod inactive.", serverAddress);
 				if (rendererRegistered) {
 					renderer.disable();
-					System.out.println("[Aechronis] Renderer disabled (left Aechronis).");
+					LOGGER.info("Renderer disabled (left Aechronis).");
 				}
 				fetcher.onLeaveAechronis();
 				return;
@@ -58,13 +62,13 @@ public class AechronisMapMod implements ClientModInitializer {
 				xaeroplus.module.ModuleManager.addModule(renderer);
 				renderer.enable();
 				rendererRegistered = true;
-				System.out.println("[Aechronis] Renderer created and enabled.");
+				LOGGER.info("Renderer created and enabled.");
 			} else {
 				// Subsequent joins (proxy transfers etc.) — force a fresh re-registration
 				// of draw features by disabling then re-enabling the same module instance.
 				renderer.disable();
 				renderer.enable();
-				System.out.println("[Aechronis] Renderer re-enabled (fresh registration).");
+				LOGGER.info("Renderer re-enabled (fresh registration).");
 			}
 			fetcher.onJoinAechronis();
 		});
@@ -90,6 +94,6 @@ public class AechronisMapMod implements ClientModInitializer {
 			fetcher.onLeaveAechronis();
 		});
 
-		System.out.println("[Aechronis] Initialized!");
+		LOGGER.info("Initialized!");
 	}
 }

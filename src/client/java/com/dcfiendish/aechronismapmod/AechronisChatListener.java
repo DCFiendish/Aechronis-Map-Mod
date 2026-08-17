@@ -2,11 +2,15 @@ package com.dcfiendish.aechronismapmod;
 
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.network.chat.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class AechronisChatListener {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
     // Node-level (whole-territory) flips, plus per-chunk war tracking (chunk
     // captured/liberated/defended, attack-start/under-attack). Per-chunk tracking
@@ -93,7 +97,7 @@ public class AechronisChatListener {
             // A malformed/unexpected match (regex matched but content didn't parse as
             // expected, a future Nodes plugin format change, etc.) must never propagate
             // an uncaught exception through Fabric's chat event pipeline.
-            System.out.println("[Aechronis] Chat handler error on line: " + text + " (" + e + ")");
+            LOGGER.warn("Chat handler error on line: {}", text, e);
         }
     }
 

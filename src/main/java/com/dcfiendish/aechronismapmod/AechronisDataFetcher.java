@@ -2,6 +2,8 @@ package com.dcfiendish.aechronismapmod;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -14,6 +16,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class AechronisDataFetcher {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
     private static final String MAP_BASE      = "https://map.aechronis.net/";
     private static final String TOWNS_URL     = MAP_BASE + "nodes/towns.json";
@@ -90,30 +94,29 @@ public class AechronisDataFetcher {
 
     private void fetchWorldAndTerritories() {
         try {
-            System.out.println("[Aechronis] Fetching world.json and towns.json for territory data...");
+            LOGGER.info("Fetching world.json and towns.json for territory data...");
             String worldStr = fetch(WORLD_URL);
             String townsStr = fetch(TOWNS_URL);
             JsonObject worldJson = JsonParser.parseString(worldStr).getAsJsonObject();
             JsonObject townsJson = JsonParser.parseString(townsStr).getAsJsonObject();
             mapData.loadWorldData(worldJson);
             mapData.loadTownsData(townsJson, townsStr);
-            System.out.println("[Aechronis] World and territory data loaded.");
+            LOGGER.info("World and territory data loaded.");
         } catch (Exception e) {
-            System.out.println("[Aechronis] World fetch error: " + e.getMessage() +
-                    " — retrying in " + WORLD_FETCH_RETRY_DELAY_SECONDS + "s.");
+            LOGGER.warn("World fetch error: {} — retrying in {}s.", e.getMessage(), WORLD_FETCH_RETRY_DELAY_SECONDS);
             scheduler.schedule(this::fetchWorldAndTerritories, WORLD_FETCH_RETRY_DELAY_SECONDS, TimeUnit.SECONDS);
         }
     }
 
     private void fetchBuildings() {
         try {
-            System.out.println("[Aechronis] Fetching buildings.json...");
+            LOGGER.info("Fetching buildings.json...");
             String json = fetch(BUILDINGS_URL);
             JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
             mapData.loadBuildingsData(obj);
-            System.out.println("[Aechronis] Buildings loaded.");
+            LOGGER.info("Buildings loaded.");
         } catch (Exception e) {
-            System.out.println("[Aechronis] Buildings fetch error: " + e.getMessage());
+            LOGGER.warn("Buildings fetch error: {}", e.getMessage());
         }
     }
 
@@ -123,7 +126,7 @@ public class AechronisDataFetcher {
             JsonObject townsJson = JsonParser.parseString(json).getAsJsonObject();
             mapData.loadTownsData(townsJson, json);
         } catch (Exception e) {
-            System.out.println("[Aechronis] Towns fetch error: " + e.getMessage());
+            LOGGER.warn("Towns fetch error: {}", e.getMessage());
         }
     }
 
@@ -133,7 +136,7 @@ public class AechronisDataFetcher {
             JsonObject warJson = JsonParser.parseString(json).getAsJsonObject();
             mapData.loadWarData(warJson);
         } catch (Exception e) {
-            System.out.println("[Aechronis] War fetch error: " + e.getMessage());
+            LOGGER.warn("War fetch error: {}", e.getMessage());
         }
     }
 

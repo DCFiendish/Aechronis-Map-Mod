@@ -1,6 +1,8 @@
 package com.dcfiendish.aechronismapmod;
 
 import net.fabricmc.loader.api.FabricLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,6 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   snapshots/       — full towns.json bodies, one per occupied-set transition.
  */
 public final class AechronisWarCapture {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
     public static final boolean ENABLED = false;
 
@@ -73,7 +77,7 @@ public final class AechronisWarCapture {
                 String filename = Instant.now().toString().replace(":", "-") + "_" + reason + ".json";
                 Files.writeString(SNAPSHOT_DIR.resolve(filename), rawJson);
             } catch (IOException e) {
-                System.out.println("[Aechronis] WarCapture snapshot failed: " + e.getMessage());
+                LOGGER.warn("WarCapture snapshot failed: {}", e.getMessage());
             }
         }
     }
@@ -84,7 +88,7 @@ public final class AechronisWarCapture {
             Files.writeString(file, "[" + Instant.now() + "] " + line + System.lineSeparator(),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
-            System.out.println("[Aechronis] WarCapture log failed: " + e.getMessage());
+            LOGGER.warn("WarCapture log failed: {}", e.getMessage());
         }
     }
 
