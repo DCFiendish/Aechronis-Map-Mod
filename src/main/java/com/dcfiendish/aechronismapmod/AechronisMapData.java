@@ -97,6 +97,14 @@ public class AechronisMapData {
     // sufficient on its own since it's authoritative.
     public final Set<String> capturedTerritoryIds = ConcurrentHashMap.newKeySet();
     public final ConcurrentHashMap<String, Integer> territoryDiagonalColors = new ConcurrentHashMap<>();
+    // Guards the multi-step capturedTerritoryIds/territoryDiagonalColors/chatFlipTimestamps
+    // updates in captureTerritory() and loadTownsData()'s protected-set retain/add block.
+    // Each collection is individually thread-safe, but the SEQUENCE of operations across
+    // all three isn't — without this lock, a chat-driven captureTerritory() landing between
+    // loadTownsData()'s protected-set snapshot and its retainAll calls can add a territory
+    // to capturedTerritoryIds just as territoryDiagonalColors.retainAll() strips its color
+    // (using the now-stale snapshot), leaving it flagged occupied with no diagonal to render.
+    private final Object occupiedStateLock = new Object();
 
     // Set to true only when an actual OWNERSHIP change was applied this poll (new
     // owner, or an owning nation's color itself changed) — NOT set unconditionally
@@ -653,19 +661,28 @@ public class AechronisMapData {
         // which is exactly what "hasn't caught up" means), clearing the occupied diagonal
         // well before CHAT_FLIP_GRACE_MS elapses. Explicitly protect anything still in
         // its grace window so it survives this poll regardless of what the JSON says.
-        Set<String> protectedFromEviction = new HashSet<>(newCapturedFromJson);
-        for (Map.Entry<String, Long> entry : chatFlipTimestamps.entrySet()) {
-            if (now - entry.getValue() < CHAT_FLIP_GRACE_MS) protectedFromEviction.add(entry.getKey());
-        }
-        // retainAll+addAll (instead of clear()+addAll) avoids a window where the set is
-        // briefly empty while the renderer might be reading it on another thread.
-        boolean occupiedSetChanged = !this.capturedTerritoryIds.equals(newCapturedFromJson);
-        this.capturedTerritoryIds.retainAll(protectedFromEviction);
-        this.capturedTerritoryIds.addAll(newCapturedFromJson);
-        this.territoryDiagonalColors.keySet().retainAll(protectedFromEviction);
-        for (String tid : newCapturedFromJson) {
-            Integer color = newDiagonalColors.get(tid);
-            if (color != null) this.territoryDiagonalColors.put(tid, color);
+        //
+        // The snapshot-then-retain sequence below must be atomic with respect to
+        // captureTerritory()'s writes (occupiedStateLock) — otherwise a chat-driven
+        // capture landing mid-sequence can add a territory to capturedTerritoryIds after
+        // protectedFromEviction was snapshotted, and the territoryDiagonalColors retainAll
+        // (using that now-stale snapshot) strips its just-set color right back out.
+        boolean occupiedSetChanged;
+        synchronized (occupiedStateLock) {
+            Set<String> protectedFromEviction = new HashSet<>(newCapturedFromJson);
+            for (Map.Entry<String, Long> entry : chatFlipTimestamps.entrySet()) {
+                if (now - entry.getValue() < CHAT_FLIP_GRACE_MS) protectedFromEviction.add(entry.getKey());
+            }
+            // retainAll+addAll (instead of clear()+addAll) avoids a window where the set is
+            // briefly empty while the renderer might be reading it on another thread.
+            occupiedSetChanged = !this.capturedTerritoryIds.equals(protectedFromEviction);
+            this.capturedTerritoryIds.retainAll(protectedFromEviction);
+            this.capturedTerritoryIds.addAll(newCapturedFromJson);
+            this.territoryDiagonalColors.keySet().retainAll(protectedFromEviction);
+            for (String tid : newCapturedFromJson) {
+                Integer color = newDiagonalColors.get(tid);
+                if (color != null) this.territoryDiagonalColors.put(tid, color);
+            }
         }
         if (occupiedSetChanged && rawJson != null) {
             AechronisWarCapture.snapshotTownsJson(rawJson, "occupied-set-changed");
@@ -821,9 +838,14 @@ public class AechronisMapData {
         // may not have regenerated to reflect the capture yet, and dropping it from
         // capturedTerritoryIds prematurely would cause a visible flicker of the diagonal
         // (appear -> briefly disappear -> reappear once the server catches up).
-        chatFlipTimestamps.put(tid, System.currentTimeMillis());
-        capturedTerritoryIds.add(tid);
-        territoryDiagonalColors.put(tid, color);
+        // Synchronized with loadTownsData()'s protected-set retain/add block (same lock)
+        // so a poll can never observe capturedTerritoryIds and territoryDiagonalColors
+        // mid-update here — see occupiedStateLock's javadoc.
+        synchronized (occupiedStateLock) {
+            chatFlipTimestamps.put(tid, System.currentTimeMillis());
+            capturedTerritoryIds.add(tid);
+            territoryDiagonalColors.put(tid, color);
+        }
         // The whole node just changed state — any per-chunk war stripes from skirmishes
         // earlier in this siege are now stale (superseded by the territory-level occupied
         // diagonal) and would otherwise keep rendering for up to their own timeout.
