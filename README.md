@@ -22,8 +22,10 @@ alongside other servers/modpacks.
   labels (diamonds, gold, iron, etc.) for nodes with resources.
 - **Town & nation labels** — town names at their spawn point; nation names at
   each nation's capital.
-- **Buildings** — colored ring markers per building type (port, factory, train
-  station), sourced from `nodes/buildings.json`. Actual Icons are planned when I can test them
+- **Buildings** — colored ring markers per building type (port, factory),
+  sourced from `nodes/buildings.json`. Actual icons are planned when I can test them.
+- **Train network** — station labels (id, quality tier, banned flag) and route
+  lines between connected stations, sourced from `nodes/trains.json`.
 - **War visuals**, reconciled from `nodes/war.json` and driven live off
   in-game `[War]` chat messages:
   - *Occupied territories* — a diagonal marker across a captured-but-not-yet-annexed
@@ -35,11 +37,12 @@ alongside other servers/modpacks.
 - All of the above are individually toggleable and opacity/width-adjustable via
   [Mod Menu](https://modrinth.com/mod/modmenu) / [Cloth Config](https://modrinth.com/mod/cloth-config).
 - Middle Mouse clicking on a node in your world map will send a chat message with info about the node.
+- **World Map search** — type a town name or node id into the search box and press Enter to drop a temporary waypoint at its core.
 
-Factory and train station markers are placeholder colored rings for now —
-Aechronis's map server has no icon art for these yet, and neither type has
-appeared in live `buildings.json` data, so their exact type-string spelling
-is unconfirmed. Real icon textures will replace the rings once artwork exists.
+Factory markers are a placeholder colored ring for now — Aechronis's map server
+has no icon art for it yet, and it has never appeared in live `buildings.json`
+data, so its exact type-string spelling is unconfirmed. Real icon textures will
+replace the ring once artwork exists.
 
 ## Requirements
 

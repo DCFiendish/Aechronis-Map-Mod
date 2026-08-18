@@ -76,6 +76,9 @@ public class AechronisMapData {
     // Leader username and resident count per town, for the click-to-info feature below.
     public volatile Map<String, String> townLeaderMap = new HashMap<>();
     public volatile Map<String, Integer> townResidentCountMap = new HashMap<>();
+    // Town name -> spawn {x, z}, for the world-map search-to-waypoint feature. Mirrors
+    // the local townSpawnXZ map pollTowns() already builds for nation-capital labels.
+    public volatile Map<String, int[]> townSpawnMap = new HashMap<>();
     // Per-territory ownership snapshot for the world-map click-to-info feature — rebuilt
     // every towns.json poll from the same JSON truth as the color-diff logic below, but
     // deliberately NOT routed through that logic's chat-flip grace window/two-phase
@@ -98,6 +101,12 @@ public class AechronisMapData {
     // in loadBuildingsData(), which also parses (but doesn't yet render) any other
     // building `type`s the schema supports for a future update. ─────────────────────
     public volatile List<PortInfo> ports = new ArrayList<>();
+
+    // ── Train network (from trains.json, fetched ONCE alongside buildings — see
+    // loadTrainsData()). Stations are the Nodes plugin's own Trains system, entirely
+    // separate from the generic Building/buildings.json system above. ──────────────
+    public volatile List<TrainStationInfo> trainStations = new ArrayList<>();
+    public volatile List<NodeBorderLine> trainRouteLines = new ArrayList<>();
 
     // ── Occupation / annexation (captured-but-not-annexed) tracking ─────────
     // Per Nodes plugin mechanics (confirmed via https://nodes.soy/4-2-diplomacy-war.html):
@@ -229,18 +238,67 @@ public class AechronisMapData {
         LOGGER.info("Loaded {} buildings.", newPorts.size());
     }
 
+    /** Parses trains.json (see Trains.kt's save() on the server — an entirely separate
+     *  system from buildings.json above): a flat list of stations plus directed rail
+     *  edges from each station's adjacent track to wherever it terminates. Builds one
+     *  route line per physically-connected station PAIR, not per edge — a normal
+     *  two-way connection produces two edge records (one from each end), so edges are
+     *  deduped by unordered station-id pair (only station < destination is kept) rather
+     *  than drawing every route twice. Edges with no destination (dead-end/unfinished
+     *  track) aren't rendered as routes. */
+    public void loadTrainsData(JsonObject trainsJson) {
+        JsonArray stationsArr = trainsJson.has("stations") && !trainsJson.get("stations").isJsonNull()
+                ? trainsJson.getAsJsonArray("stations") : new JsonArray();
+        JsonArray edgesArr = trainsJson.has("edges") && !trainsJson.get("edges").isJsonNull()
+                ? trainsJson.getAsJsonArray("edges") : new JsonArray();
+
+        List<TrainStationInfo> newStations = new ArrayList<>();
+        Map<Integer, int[]> stationPosById = new HashMap<>(); // id -> {x, z}
+        for (JsonElement el : stationsArr) {
+            if (el.isJsonNull()) continue;
+            JsonObject s = el.getAsJsonObject();
+            if (!s.has("id") || !s.has("x") || !s.has("z")) continue;
+            int id = s.get("id").getAsInt();
+            int x = s.get("x").getAsInt();
+            int z = s.get("z").getAsInt();
+            int tier = s.has("tier") && !s.get("tier").isJsonNull() ? s.get("tier").getAsInt() : 0;
+            boolean banned = s.has("banned") && !s.get("banned").isJsonNull() && s.get("banned").getAsBoolean();
+            newStations.add(new TrainStationInfo(id, x, z, tier, banned));
+            stationPosById.put(id, new int[]{x, z});
+        }
+
+        List<NodeBorderLine> newRouteLines = new ArrayList<>();
+        for (JsonElement el : edgesArr) {
+            if (el.isJsonNull()) continue;
+            JsonObject e = el.getAsJsonObject();
+            if (!e.has("station") || !e.has("destination") || e.get("destination").isJsonNull()) continue;
+            int stationId = e.get("station").getAsInt();
+            int destinationId = e.get("destination").getAsInt();
+            if (stationId >= destinationId) continue; // dedupe: keep only one direction per pair
+            int[] from = stationPosById.get(stationId);
+            int[] to = stationPosById.get(destinationId);
+            if (from == null || to == null) continue;
+            newRouteLines.add(new NodeBorderLine(from[0], from[1], to[0], to[1]));
+        }
+
+        this.trainStations = newStations;
+        this.trainRouteLines = newRouteLines;
+        LOGGER.info("Loaded {} train stations, {} routes.", newStations.size(), newRouteLines.size());
+    }
+
     /** Marker color per building `type`. Placeholder colors only — Aechronis's map
      *  server has no icon graphics of its own to reuse (confirmed: its web map draws
      *  markers as WebGL/canvas shapes, not image files), so until real icon art
      *  exists, each type just gets a distinct colored ring (see AechronisRenderer's
-     *  building-marker ellipse feature). "factory"/"train_station" have never
-     *  actually appeared in live buildings.json (only "port" has so far) — their
-     *  exact type-string spelling is unconfirmed, best guess from the schema. Returns
-     *  -1 for anything unrecognized, which is silently skipped by loadBuildingsData(). */
+     *  building-marker ellipse feature). "factory" has never actually appeared in live
+     *  buildings.json (only "port" has so far) — its exact type-string spelling is
+     *  unconfirmed, best guess from the schema. Train stations are NOT a Building type
+     *  at all — they're the Nodes plugin's separate Trains system (trains.json), see
+     *  loadTrainsData()/AechronisRenderer's train-station markers. Returns -1 for
+     *  anything unrecognized, which is silently skipped by loadBuildingsData(). */
     private static int buildingColor(String type) {
         if ("port".equalsIgnoreCase(type)) return 0x00CCFF; // cyan
         if ("factory".equalsIgnoreCase(type)) return 0xFF8800; // orange
-        if ("train_station".equalsIgnoreCase(type) || "train station".equalsIgnoreCase(type)) return 0xAA66FF; // purple
         return -1;
     }
 
@@ -588,6 +646,7 @@ public class AechronisMapData {
         }
         this.townWaypoints  = newWaypoints;
         this.townLabelInfos = newTownLabelInfos;
+        this.townSpawnMap   = new HashMap<>(townSpawnXZ);
 
         // Nation labels — at each nation's CAPITAL town spawn, lifted a small fixed
         // offset north (−Z) so it floats above the town label rather than overlapping.
@@ -1295,6 +1354,18 @@ public class AechronisMapData {
         public final int color; // RGB, no alpha
         public PortInfo(String name, int x, int z, int color) {
             this.name = name; this.x = x; this.z = z; this.color = color;
+        }
+    }
+
+    /** A train station — id, position, quality tier (0-3), and whether travel to/from
+     *  it is currently banned. See Trains.kt's TrainStation on the server. */
+    public static class TrainStationInfo {
+        public final int id;
+        public final int x, z;
+        public final int tier;
+        public final boolean banned;
+        public TrainStationInfo(int id, int x, int z, int tier, boolean banned) {
+            this.id = id; this.x = x; this.z = z; this.tier = tier; this.banned = banned;
         }
     }
 

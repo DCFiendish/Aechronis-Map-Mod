@@ -24,6 +24,7 @@ public class AechronisDataFetcher {
     private static final String WORLD_URL     = MAP_BASE + "nodes/world.json";
     private static final String WAR_URL       = MAP_BASE + "nodes/war.json";
     private static final String BUILDINGS_URL = MAP_BASE + "nodes/buildings.json";
+    private static final String TRAINS_URL    = MAP_BASE + "nodes/trains.json";
 
     public AechronisMapData mapData;
 
@@ -40,6 +41,7 @@ public class AechronisDataFetcher {
     private volatile boolean oneTimeDataFetched = false;
     private volatile ScheduledFuture<?> townsPollFuture;
     private volatile ScheduledFuture<?> warPollFuture;
+    private volatile ScheduledFuture<?> trainsPollFuture;
 
     /**
      * Called by AechronisMapMod's JOIN handler once an Aechronis connection is confirmed.
@@ -65,6 +67,13 @@ public class AechronisDataFetcher {
         if (warPollFuture == null || warPollFuture.isCancelled()) {
             warPollFuture = scheduler.scheduleAtFixedRate(this::fetchWarJson, 4, 15, TimeUnit.SECONDS);
         }
+        // trains.json is polled, NOT one-time like buildings.json: stations/rail get built
+        // and torn down continuously during play (unlike buildings, which are effectively
+        // static once placed), and — unlike towns.json's poll — there's no chat event to
+        // catch new stations between polls, so this is the only path that ever notices one.
+        if (trainsPollFuture == null || trainsPollFuture.isCancelled()) {
+            trainsPollFuture = scheduler.scheduleAtFixedRate(this::fetchTrains, 3, 30, TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -80,6 +89,10 @@ public class AechronisDataFetcher {
         if (warPollFuture != null) {
             warPollFuture.cancel(false);
             warPollFuture = null;
+        }
+        if (trainsPollFuture != null) {
+            trainsPollFuture.cancel(false);
+            trainsPollFuture = null;
         }
     }
 
@@ -124,6 +137,18 @@ public class AechronisDataFetcher {
             LOGGER.info("Buildings loaded.");
         } catch (Throwable e) {
             LOGGER.warn("Buildings fetch error: {}", e.getMessage());
+        }
+    }
+
+    private void fetchTrains() {
+        try {
+            LOGGER.info("Fetching trains.json...");
+            String json = fetch(TRAINS_URL);
+            JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+            mapData.loadTrainsData(obj);
+            LOGGER.info("Trains loaded.");
+        } catch (Throwable e) {
+            LOGGER.warn("Trains fetch error: {}", e.getMessage());
         }
     }
 
