@@ -23,7 +23,7 @@ alongside other servers/modpacks.
 - **Town & nation labels** — town names at their spawn point; nation names at
   each nation's capital.
 - **Buildings** — colored ring markers per building type (port, factory, train
-  station), sourced from `nodes/buildings.json`.
+  station), sourced from `nodes/buildings.json`. Actual Icons are planned when I can test them
 - **War visuals**, reconciled from `nodes/war.json` and driven live off
   in-game `[War]` chat messages:
   - *Occupied territories* — a diagonal marker across a captured-but-not-yet-annexed
@@ -34,6 +34,7 @@ alongside other servers/modpacks.
   - *Under-attack stripes* — a diagonal on chunks with a flag currently planted.
 - All of the above are individually toggleable and opacity/width-adjustable via
   [Mod Menu](https://modrinth.com/mod/modmenu) / [Cloth Config](https://modrinth.com/mod/cloth-config).
+- Middle Mouse clicking on a node in your world map will send a chat message with info about the node.
 
 Factory and train station markers are placeholder colored rings for now —
 Aechronis's map server has no icon art for these yet, and neither type has
