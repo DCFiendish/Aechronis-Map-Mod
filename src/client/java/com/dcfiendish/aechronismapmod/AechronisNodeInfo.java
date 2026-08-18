@@ -11,10 +11,10 @@ import java.util.Set;
 
 /**
  * World-map click-to-info: resolves the node/territory under a clicked block position
- * (see AechronisGuiMapClickMixin) and prints its details — the same kind of info
- * (id, owner, chunk count, resources) the web nodes map shows on click — as a client-side
- * chat message. No custom GUI/tooltip rendering; a chat line is the simplest way to
- * surface this without touching GuiMap's own render/layout code at all.
+ * (see AechronisGuiMapMixin) and prints its details — the same kind of info (id, owner,
+ * chunk count, resources) the web nodes map shows on click — as a client-side chat
+ * message. No custom GUI/tooltip rendering; a chat line is the simplest way to surface
+ * this without touching GuiMap's own render/layout code at all.
  */
 public class AechronisNodeInfo {
 
@@ -56,13 +56,19 @@ public class AechronisNodeInfo {
             if (info.nation != null) {
                 line.append(Component.literal(" (" + info.nation + ")").withStyle(ChatFormatting.AQUA));
             }
+            // Live production towns can genuinely have no leader set — that's a real
+            // Nodes-plugin state, not a lookup failure, so the "led by" clause only
+            // appears when there actually is one; resident count stands alone otherwise.
             String leader = mapData.townLeaderMap.get(info.townName);
             Integer residents = mapData.townResidentCountMap.get(info.townName);
-            if (leader != null || residents != null) {
-                StringBuilder led = new StringBuilder(" — led by ");
-                led.append(leader != null ? leader : "unknown");
-                if (residents != null) led.append(" (").append(residents).append(" resident").append(residents == 1 ? "" : "s").append(")");
-                line.append(Component.literal(led.toString()).withStyle(ChatFormatting.YELLOW));
+            if (leader != null && residents != null) {
+                line.append(Component.literal(" — led by " + leader + " (" + residents + " resident" + (residents == 1 ? "" : "s") + ")")
+                        .withStyle(ChatFormatting.YELLOW));
+            } else if (leader != null) {
+                line.append(Component.literal(" — led by " + leader).withStyle(ChatFormatting.YELLOW));
+            } else if (residents != null) {
+                line.append(Component.literal(" — " + residents + " resident" + (residents == 1 ? "" : "s"))
+                        .withStyle(ChatFormatting.YELLOW));
             }
             if (info.occupied) {
                 String occupier = info.occupierTownName != null ? info.occupierTownName : "unknown";
