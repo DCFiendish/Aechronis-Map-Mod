@@ -53,6 +53,14 @@ public class AechronisMapData {
     public volatile Map<String, Set<Long>> territoryChunkMap = new HashMap<>();
     public volatile Map<String, Long> coreChunkMap = new HashMap<>();
     public volatile Map<String, List<NodeBorderLine>> territoryDiagonals = new HashMap<>();
+    // Resource node type strings per territory (e.g. "diamond", "basic"), straight from
+    // world.json's "nodes" array — same source rebuildGeometry() already reads for node
+    // borders/labels, just kept keyed by tid too for the click-to-info lookup below.
+    public volatile Map<String, List<String>> territoryNodeTypes = new HashMap<>();
+    // Reverse index of territoryChunkMap (packed ChunkPos -> owning tid), built once
+    // alongside it in rebuildGeometry() so a world-map click can resolve "which node is
+    // this chunk part of" in O(1) instead of scanning every territory's chunk set.
+    public volatile Long2ObjectOpenHashMap<String> chunkToTerritoryId = new Long2ObjectOpenHashMap<>();
 
     // ── Town-derived data — recomputed every towns.json poll, but cheap: this
     // loop is proportional to TOWN COUNT (low hundreds at most), never to chunk
@@ -65,6 +73,17 @@ public class AechronisMapData {
     public volatile List<NationLabelInfo> nationLabelInfos = new ArrayList<>();
     public volatile List<TownWaypoint> townWaypoints = new ArrayList<>();
     public volatile Map<String, String> townNationMap = new HashMap<>();
+    // Leader username and resident count per town, for the click-to-info feature below.
+    public volatile Map<String, String> townLeaderMap = new HashMap<>();
+    public volatile Map<String, Integer> townResidentCountMap = new HashMap<>();
+    // Per-territory ownership snapshot for the world-map click-to-info feature — rebuilt
+    // every towns.json poll from the same JSON truth as the color-diff logic below, but
+    // deliberately NOT routed through that logic's chat-flip grace window/two-phase
+    // capture bookkeeping: those exist purely to avoid visual flicker in the continuous
+    // chunk-fill rendering, which doesn't apply to a one-shot info lookup triggered by a
+    // click. A tid with no entry here means it isn't a real node (missing from
+    // world.json); an entry with a null townName means the node exists but is unclaimed.
+    public volatile Map<String, TerritoryInfo> territoryInfoByTid = new HashMap<>();
     // Player username -> nation. Built each towns.json poll from each town's
     // AUTHORITATIVE "residents" UUID roster (which always includes the leader —
     // confirmed against the plugin source), not a resident's own self-reported
@@ -234,6 +253,8 @@ public class AechronisMapData {
         Map<String, Set<Long>> newTerritoryChunkMap = new HashMap<>();
         Map<String, Long> newCoreChunkMap = new HashMap<>();
         Map<String, List<NodeBorderLine>> newTerritoryDiagonals = new HashMap<>();
+        Map<String, List<String>> newTerritoryNodeTypes = new HashMap<>();
+        Long2ObjectOpenHashMap<String> newChunkToTerritoryId = new Long2ObjectOpenHashMap<>();
 
         for (Map.Entry<String, JsonElement> e : territories.entrySet()) {
             String tid = e.getKey();
@@ -251,6 +272,7 @@ public class AechronisMapData {
             Set<Long> chunkSet = new HashSet<>();
             for (long[] cp : chunkPairs) chunkSet.add(ChunkPos.pack((int)cp[0], (int)cp[1]));
             newTerritoryChunkMap.put(tid, chunkSet);
+            for (long packedChunk : chunkSet) newChunkToTerritoryId.put(packedChunk, tid);
 
             if (coreChunkArr != null) {
                 newCoreChunkMap.put(tid, ChunkPos.pack(
@@ -291,6 +313,7 @@ public class AechronisMapData {
             for (JsonElement n : nodes) {
                 if (!n.isJsonNull()) nodeTypeNames.add(n.getAsString());
             }
+            if (!nodeTypeNames.isEmpty()) newTerritoryNodeTypes.put(tid, nodeTypeNames);
 
             if (!chunkPairs.isEmpty()) {
                 List<int[]> borders = getBorderLines(chunkPairs);
@@ -333,11 +356,13 @@ public class AechronisMapData {
             }
         }
 
-        this.nodeBorderLines    = newBorderLines;
-        this.nodeLabelInfos     = newLabelInfos;
-        this.territoryChunkMap  = newTerritoryChunkMap;
-        this.coreChunkMap       = newCoreChunkMap;
-        this.territoryDiagonals = newTerritoryDiagonals;
+        this.nodeBorderLines      = newBorderLines;
+        this.nodeLabelInfos       = newLabelInfos;
+        this.territoryChunkMap    = newTerritoryChunkMap;
+        this.coreChunkMap         = newCoreChunkMap;
+        this.territoryDiagonals   = newTerritoryDiagonals;
+        this.territoryNodeTypes   = newTerritoryNodeTypes;
+        this.chunkToTerritoryId   = newChunkToTerritoryId;
 
         LOGGER.info("Geometry built (once): {} territories, {} node border lines, {} node labels.",
                 newTerritoryChunkMap.size(), newBorderLines.size(), newLabelInfos.size());
@@ -373,6 +398,9 @@ public class AechronisMapData {
         this.townNationMap = new HashMap<>(townNation);
 
         Map<String, String> territoryNation = new HashMap<>();
+        // tid -> owning town name, kept alongside territoryNation purely for the
+        // click-to-info feature below (rendering only ever needed the nation/color).
+        Map<String, String> territoryTown = new HashMap<>();
         Set<String> newCapturedFromJson = new HashSet<>();
         JsonObject townsObj = towns.has("towns") ? towns.getAsJsonObject("towns") : new JsonObject();
         for (Map.Entry<String, JsonElement> e : townsObj.entrySet()) {
@@ -398,7 +426,10 @@ public class AechronisMapData {
             for (String field : new String[]{"territories", "annexed"}) {
                 if (town.has(field)) {
                     for (JsonElement tid : town.getAsJsonArray(field)) {
-                        if (!tid.isJsonNull()) territoryNation.put(tid.getAsString(), nation);
+                        if (!tid.isJsonNull()) {
+                            territoryNation.put(tid.getAsString(), nation);
+                            territoryTown.put(tid.getAsString(), townName);
+                        }
                     }
                 }
             }
@@ -411,6 +442,7 @@ public class AechronisMapData {
         // without this snapshot, that bootstrap would have no way to know who held the
         // territory before capture, only who currently occupies it.
         Map<String, String> baselineTerritoryNation = new HashMap<>(territoryNation);
+        Map<String, String> baselineTerritoryTown = new HashMap<>(territoryTown);
 
         // Player username -> nation (see field javadoc above). Built from each town's
         // authoritative "residents" UUID roster, resolved to names via the top-level
@@ -439,6 +471,24 @@ public class AechronisMapData {
         this.playerNationMap = newPlayerNationMap;
         this.uuidToNameMap = new HashMap<>(uuidToName);
 
+        // Leader name + resident count per town, for the click-to-info feature — keyed by
+        // town name (not tid) since a territory's TerritoryInfo already carries townName.
+        Map<String, String> newTownLeaderMap = new HashMap<>();
+        Map<String, Integer> newTownResidentCountMap = new HashMap<>();
+        for (Map.Entry<String, JsonElement> e : townsObj.entrySet()) {
+            String townName = e.getKey();
+            JsonObject town = e.getValue().getAsJsonObject();
+            if (town.has("leader") && !town.get("leader").isJsonNull()) {
+                String leaderName = uuidToName.get(town.get("leader").getAsString());
+                if (leaderName != null) newTownLeaderMap.put(townName, leaderName);
+            }
+            if (town.has("residents") && !town.get("residents").isJsonNull()) {
+                newTownResidentCountMap.put(townName, town.getAsJsonArray("residents").size());
+            }
+        }
+        this.townLeaderMap = newTownLeaderMap;
+        this.townResidentCountMap = newTownResidentCountMap;
+
         // Pass 2: process every town's "captured" list AFTER all baseline ownership has
         // been written. This guarantees the occupier wins the color-resolution race, even
         // if a territory transiently appears in both the defender's baseline list and the
@@ -446,6 +496,7 @@ public class AechronisMapData {
         // final territoryNation for that tid is whichever town happened to be iterated
         // last — nondeterministic across HashMap iteration orders, and we saw this cause
         // occupied diagonals to render in the defender's color instead of the occupier's.
+        Map<String, String> occupierTown = new HashMap<>();
         for (Map.Entry<String, JsonElement> e : townsObj.entrySet()) {
             String townName = e.getKey();
             JsonObject town = e.getValue().getAsJsonObject();
@@ -453,7 +504,10 @@ public class AechronisMapData {
             if (nation == null) continue;
             if (town.has("captured") && !town.get("captured").isJsonNull()) {
                 for (JsonElement tid : town.getAsJsonArray("captured")) {
-                    if (!tid.isJsonNull()) territoryNation.put(tid.getAsString(), nation);
+                    if (!tid.isJsonNull()) {
+                        territoryNation.put(tid.getAsString(), nation);
+                        occupierTown.put(tid.getAsString(), townName);
+                    }
                 }
             }
         }
@@ -472,6 +526,23 @@ public class AechronisMapData {
             String ownerNation = baselineTerritoryNation.get(tid);
             return occupierNation != null && occupierNation.equals(ownerNation);
         });
+
+        // Click-to-info snapshot: one entry per node that actually exists in world.json
+        // (territoryChunkMap is geometry truth, built once in rebuildGeometry), carrying
+        // the current owner/occupier resolved above. A node with no owner in either pass
+        // just gets null town/nation — unclaimed, not missing.
+        Map<String, TerritoryInfo> newTerritoryInfo = new HashMap<>();
+        for (String tid : territoryChunkMap.keySet()) {
+            boolean occupied = newCapturedFromJson.contains(tid);
+            newTerritoryInfo.put(tid, new TerritoryInfo(
+                    baselineTerritoryTown.get(tid),
+                    baselineTerritoryNation.get(tid),
+                    occupied,
+                    occupied ? occupierTown.get(tid) : null,
+                    occupied ? territoryNation.get(tid) : null
+            ));
+        }
+        this.territoryInfoByTid = newTerritoryInfo;
 
         // Nation colors read directly from towns.json's authoritative "nations" object —
         // cheap, proportional to nation count (low dozens), not territory/chunk count.
@@ -1140,6 +1211,20 @@ public class AechronisMapData {
     }
 
     // ---- Inner classes ----
+
+    /** Current ownership snapshot for one node/territory — see territoryInfoByTid. */
+    public static class TerritoryInfo {
+        public final String townName;         // null if unclaimed
+        public final String nation;           // null if unclaimed
+        public final boolean occupied;        // captured but not yet annexed
+        public final String occupierTownName; // null unless occupied
+        public final String occupierNation;   // null unless occupied
+        public TerritoryInfo(String townName, String nation, boolean occupied,
+                              String occupierTownName, String occupierNation) {
+            this.townName = townName; this.nation = nation; this.occupied = occupied;
+            this.occupierTownName = occupierTownName; this.occupierNation = occupierNation;
+        }
+    }
 
     /** A chunk currently displaying the post-capture war stripe (see captureChunk()). */
     public static class WarChunk {
