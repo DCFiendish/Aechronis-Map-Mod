@@ -44,11 +44,12 @@ public class AechronisMapMod implements ClientModInitializer {
 			// its draw features stay registered in AechronisRenderer.ourFeatures and the mixin keeps
 			// rendering them unconditionally every frame regardless of what world you're actually in.
 			// (This was the actual cause of the nation overlay showing up in singleplayer.)
-			// TEST-FORK BRANCH: matches the private fork server's IP instead of aechronis.net.
-			// Do not merge this branch into master.
+			// LOCAL TEST SERVER: matches localhost/127.0.0.1 (see C:\aetest) instead of
+			// aechronis.net or the private fork's IP. Do not merge this into master.
 			var serverData = client.getCurrentServer();
 			String serverAddress = serverData != null ? serverData.ip : null;
-			if (serverAddress == null || !serverAddress.toLowerCase().contains("150.136.235.233")) {
+			if (serverAddress == null || !(serverAddress.toLowerCase().contains("localhost")
+					|| serverAddress.contains("127.0.0.1"))) {
 				LOGGER.info("Not connected to Aechronis (address={}), mod inactive.", serverAddress);
 				if (rendererRegistered) {
 					renderer.disable();

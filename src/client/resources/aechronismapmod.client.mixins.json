@@ -3,7 +3,9 @@
 	"package": "com.dcfiendish.aechronismapmod.client.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
-		"AechronisDrawManagerMixin"
+		"AechronisDrawManagerMixin",
+		"AechronisGuiMapMixin",
+		"AechronisGuiMapSearchMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

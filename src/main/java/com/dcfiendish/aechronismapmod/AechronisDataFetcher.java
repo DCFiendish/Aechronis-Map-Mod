@@ -19,17 +19,16 @@ public class AechronisDataFetcher {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
-    // TEST-FORK BRANCH: pointed at the private fork server's map data instead of the
-    // live map.aechronis.net endpoints, so buildings.json data (factory/train_station
-    // types) can actually be exercised before it ever appears on the real server.
-    // Confirmed live via curl: http://150.136.235.233/nodes-map/nodes/{world,towns,
-    // buildings,war}.json all return real JSON (buildings.json is currently an empty
-    // array — nothing built on the fork yet). Do not merge this branch into master.
-    private static final String MAP_BASE      = "http://150.136.235.233/nodes-map/";
+    // LOCAL TEST SERVER: pointed at the local dev Nodes server + local static JSON
+    // server (see C:\aetest\run\serve-nodes.js) instead of production/the private fork,
+    // so trains.json (added to Trains.kt Aug 13) can actually be exercised — the private
+    // fork's Nodes build predates that feature entirely. Never merge into master.
+    private static final String MAP_BASE      = "http://localhost:8085/";
     private static final String TOWNS_URL     = MAP_BASE + "nodes/towns.json";
     private static final String WORLD_URL     = MAP_BASE + "nodes/world.json";
     private static final String WAR_URL       = MAP_BASE + "nodes/war.json";
     private static final String BUILDINGS_URL = MAP_BASE + "nodes/buildings.json";
+    private static final String TRAINS_URL    = MAP_BASE + "nodes/trains.json";
 
     public AechronisMapData mapData;
 
@@ -46,6 +45,7 @@ public class AechronisDataFetcher {
     private volatile boolean oneTimeDataFetched = false;
     private volatile ScheduledFuture<?> townsPollFuture;
     private volatile ScheduledFuture<?> warPollFuture;
+    private volatile ScheduledFuture<?> trainsPollFuture;
 
     /**
      * Called by AechronisMapMod's JOIN handler once an Aechronis connection is confirmed.
@@ -71,6 +71,13 @@ public class AechronisDataFetcher {
         if (warPollFuture == null || warPollFuture.isCancelled()) {
             warPollFuture = scheduler.scheduleAtFixedRate(this::fetchWarJson, 4, 15, TimeUnit.SECONDS);
         }
+        // trains.json is polled, NOT one-time like buildings.json: stations/rail get built
+        // and torn down continuously during play (unlike buildings, which are effectively
+        // static once placed), and — unlike towns.json's poll — there's no chat event to
+        // catch new stations between polls, so this is the only path that ever notices one.
+        if (trainsPollFuture == null || trainsPollFuture.isCancelled()) {
+            trainsPollFuture = scheduler.scheduleAtFixedRate(this::fetchTrains, 3, 30, TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -86,6 +93,10 @@ public class AechronisDataFetcher {
         if (warPollFuture != null) {
             warPollFuture.cancel(false);
             warPollFuture = null;
+        }
+        if (trainsPollFuture != null) {
+            trainsPollFuture.cancel(false);
+            trainsPollFuture = null;
         }
     }
 
@@ -108,7 +119,15 @@ public class AechronisDataFetcher {
             mapData.loadWorldData(worldJson);
             mapData.loadTownsData(townsJson, townsStr);
             LOGGER.info("World and territory data loaded.");
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // Must catch Throwable, not just Exception: world.json can be tens of MB (a
+            // large local test world's is ~16MB), and parsing that into a full Gson tree
+            // is a real OutOfMemoryError risk on a client already carrying a heavy
+            // modpack. An escaped Error here (Exception doesn't catch it) skips the retry
+            // below entirely — borders/chunk fills silently stay empty for the rest of the
+            // session, even though the smaller, unrelated towns.json poll (nation/town
+            // labels) keeps working fine, exactly the "labels work, nothing else does"
+            // symptom this retry exists to prevent.
             LOGGER.warn("World fetch error: {} — retrying in {}s.", e.getMessage(), WORLD_FETCH_RETRY_DELAY_SECONDS);
             scheduler.schedule(this::fetchWorldAndTerritories, WORLD_FETCH_RETRY_DELAY_SECONDS, TimeUnit.SECONDS);
         }
@@ -121,17 +140,34 @@ public class AechronisDataFetcher {
             JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
             mapData.loadBuildingsData(obj);
             LOGGER.info("Buildings loaded.");
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOGGER.warn("Buildings fetch error: {}", e.getMessage());
         }
     }
 
+    private void fetchTrains() {
+        try {
+            LOGGER.info("Fetching trains.json...");
+            String json = fetch(TRAINS_URL);
+            JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+            mapData.loadTrainsData(obj);
+            LOGGER.info("Trains loaded.");
+        } catch (Throwable e) {
+            LOGGER.warn("Trains fetch error: {}", e.getMessage());
+        }
+    }
+
+    // fetchTownsJson/fetchWarJson also catch Throwable, not just Exception: both run via
+    // scheduleAtFixedRate, and per ScheduledExecutorService's contract, an escaped Throwable
+    // from one execution permanently cancels ALL future executions of that task — not just
+    // that one poll. Catching only Exception would silently kill the entire recurring poll
+    // for the rest of the session the first time either hit an Error.
     private void fetchTownsJson() {
         try {
             String json = fetch(TOWNS_URL);
             JsonObject townsJson = JsonParser.parseString(json).getAsJsonObject();
             mapData.loadTownsData(townsJson, json);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOGGER.warn("Towns fetch error: {}", e.getMessage());
         }
     }
@@ -141,7 +177,7 @@ public class AechronisDataFetcher {
             String json = fetch(WAR_URL);
             JsonObject warJson = JsonParser.parseString(json).getAsJsonObject();
             mapData.loadWarData(warJson);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOGGER.warn("War fetch error: {}", e.getMessage());
         }
     }

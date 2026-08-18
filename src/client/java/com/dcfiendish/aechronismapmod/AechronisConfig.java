@@ -29,6 +29,8 @@ public class AechronisConfig implements ConfigData {
     public boolean showNationLabels = true;
     public boolean showPorts = true;
     public boolean whiteBorders = false;
+    public boolean showTrainStations = true;
+    public float trainRouteLineWidth = 0.14f;
 
     // ── Getters used by renderer ──────────────────────────────
     public int getNationFillAlpha() { return (int)(nationFillOpacity / 100f * 255); }

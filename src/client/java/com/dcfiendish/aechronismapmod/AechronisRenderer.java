@@ -25,6 +25,16 @@ public class AechronisRenderer extends Module {
     // against the chunk grid (16 blocks/chunk); revisit once real icon art replaces this.
     private static final int   BUILDING_MARKER_RADIUS    = 20;
     private static final float BUILDING_MARKER_THICKNESS = 0.3f;
+    // Train stations are a separate system from buildings (see AechronisMapData.
+    // loadTrainsData()) — own marker size/color set, tuned independently.
+    private static final int   TRAIN_STATION_MARKER_RADIUS    = 20;
+    private static final float TRAIN_STATION_MARKER_THICKNESS = 0.3f;
+    private static final int   TRAIN_STATION_COLOR_TIER0  = 0x999999; // gray
+    private static final int   TRAIN_STATION_COLOR_TIER1  = 0xCD7F32; // bronze
+    private static final int   TRAIN_STATION_COLOR_TIER2  = 0xC0C0C0; // silver
+    private static final int   TRAIN_STATION_COLOR_TIER3  = 0xFFD700; // gold
+    private static final int   TRAIN_STATION_COLOR_BANNED = 0xFF0000; // red, overrides tier
+    private static final int   TRAIN_ROUTE_COLOR          = 0x808080; // neutral rail gray
     // Every overlay element except the nation fill renders fully opaque, always —
     // opacity is only user-adjustable for the nation fill (see AechronisConfig).
     private static final int  FULL_ALPHA            = 255;
@@ -74,6 +84,15 @@ public class AechronisRenderer extends Module {
     // Rebuilt on the same trigger as the port text cache above (mapData.ports size change).
     private Object2IntOpenHashMap<Ellipse> cachedBuildingMarkers = new Object2IntOpenHashMap<>();
     private int lastBuildingMarkerCount = -1;
+    // Train stations/routes — cached the same way, rebuilt when mapData.trainStations/
+    // trainRouteLines size changes (they're fetched once, so this is effectively a
+    // one-time build per join, same cadence as the building markers above).
+    private Object2IntOpenHashMap<Ellipse> cachedTrainStationMarkers = new Object2IntOpenHashMap<>();
+    private int lastTrainStationCount = -1;
+    private Long2ObjectOpenHashMap<Text> cachedTrainStationTexts = new Long2ObjectOpenHashMap<>();
+    private int lastTrainStationTextCount = -1;
+    private Object2IntOpenHashMap<Line> cachedTrainRouteLines = new Object2IntOpenHashMap<>();
+    private int lastTrainRouteLineCount = -1;
 
     // Track last config state to detect changes
     private int lastNationAlpha      = -1;
@@ -186,6 +205,33 @@ public class AechronisRenderer extends Module {
                         this::getBuildingMarkers,
                         (ellipse, value) -> value,
                         () -> BUILDING_MARKER_THICKNESS,
+                        1000
+                )
+        );
+        // Train network — stations (colored ring by tier/banned state), their id/tier
+        // labels, and route lines between connected station pairs. See AechronisMapData.
+        // loadTrainsData() for how trainStations/trainRouteLines get built.
+        ourFeatures.add(
+                DrawFeatureFactory.multiColorEllipses(
+                        "AechronisTrainStationMarkers",
+                        this::getTrainStationMarkers,
+                        (ellipse, value) -> value,
+                        () -> TRAIN_STATION_MARKER_THICKNESS,
+                        1000
+                )
+        );
+        ourFeatures.add(
+                DrawFeatureFactory.text(
+                        "AechronisTrainStationLabels",
+                        this::getTrainStationTexts
+                )
+        );
+        ourFeatures.add(
+                DrawFeatureFactory.multiColorLines(
+                        "AechronisTrainRoutes",
+                        this::getTrainRouteLines,
+                        (line, value) -> value,
+                        () -> AechronisConfig.get().trainRouteLineWidth,
                         1000
                 )
         );
@@ -466,6 +512,90 @@ public class AechronisRenderer extends Module {
             newCache.put(new Ellipse(p.x, p.z, BUILDING_MARKER_RADIUS, BUILDING_MARKER_RADIUS), color);
         }
         cachedBuildingMarkers = newCache;
+    }
+
+    // ---- Train station markers — colored ring by tier, red if banned ----
+    private Object2IntMap<Ellipse> getTrainStationMarkers(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
+        AechronisConfig cfg = AechronisConfig.get();
+        if (!cfg.showEverything) return new Object2IntOpenHashMap<>();
+        if (!cfg.showTrainStations) return new Object2IntOpenHashMap<>();
+        if (dimension != ChunkUtils.getActualDimension()) return new Object2IntOpenHashMap<>();
+
+        if (mapData.trainStations.size() != lastTrainStationCount) {
+            rebuildTrainStationMarkersCache();
+            lastTrainStationCount = mapData.trainStations.size();
+        }
+        return cachedTrainStationMarkers;
+    }
+
+    private void rebuildTrainStationMarkersCache() {
+        Object2IntOpenHashMap<Ellipse> newCache = new Object2IntOpenHashMap<>(mapData.trainStations.size());
+        for (AechronisMapData.TrainStationInfo s : mapData.trainStations) {
+            int color = withAlpha(trainStationColor(s), FULL_ALPHA);
+            newCache.put(new Ellipse(s.x, s.z, TRAIN_STATION_MARKER_RADIUS, TRAIN_STATION_MARKER_RADIUS), color);
+        }
+        cachedTrainStationMarkers = newCache;
+    }
+
+    private int trainStationColor(AechronisMapData.TrainStationInfo s) {
+        if (s.banned) return TRAIN_STATION_COLOR_BANNED;
+        return switch (s.tier) {
+            case 1 -> TRAIN_STATION_COLOR_TIER1;
+            case 2 -> TRAIN_STATION_COLOR_TIER2;
+            case 3 -> TRAIN_STATION_COLOR_TIER3;
+            default -> TRAIN_STATION_COLOR_TIER0;
+        };
+    }
+
+    // ---- Train station labels — id + tier + banned flag ----
+    private Long2ObjectOpenHashMap<Text> getTrainStationTexts(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
+        AechronisConfig cfg = AechronisConfig.get();
+        if (!cfg.showEverything) return new Long2ObjectOpenHashMap<>();
+        if (!cfg.showTrainStations) return new Long2ObjectOpenHashMap<>();
+        if (dimension != ChunkUtils.getActualDimension()) return new Long2ObjectOpenHashMap<>();
+
+        if (mapData.trainStations.size() != lastTrainStationTextCount) {
+            rebuildTrainStationTextsCache();
+            lastTrainStationTextCount = mapData.trainStations.size();
+        }
+        return cachedTrainStationTexts;
+    }
+
+    private void rebuildTrainStationTextsCache() {
+        Long2ObjectOpenHashMap<Text> newCache = new Long2ObjectOpenHashMap<>(mapData.trainStations.size());
+        int textColor = (0xFF << 24) | 0xFFFFFF;
+        for (AechronisMapData.TrainStationInfo s : mapData.trainStations) {
+            StringBuilder label = new StringBuilder("Station ").append(s.id);
+            if (s.tier > 0) label.append(" T").append(s.tier);
+            if (s.banned) label.append(" [BANNED]");
+            long key = ChunkPos.pack(s.x >> 4, s.z >> 4);
+            newCache.put(key, new Text(label.toString(), s.x, s.z, textColor, 0.4f));
+        }
+        cachedTrainStationTexts = newCache;
+    }
+
+    // ---- Train route lines — one per connected station pair (see AechronisMapData.
+    // loadTrainsData() for the dedup that guarantees this) ----
+    private Object2IntMap<Line> getTrainRouteLines(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
+        AechronisConfig cfg = AechronisConfig.get();
+        if (!cfg.showEverything) return new Object2IntOpenHashMap<>();
+        if (!cfg.showTrainStations) return new Object2IntOpenHashMap<>();
+        if (dimension != ChunkUtils.getActualDimension()) return new Object2IntOpenHashMap<>();
+
+        if (mapData.trainRouteLines.size() != lastTrainRouteLineCount) {
+            rebuildTrainRouteLinesCache();
+            lastTrainRouteLineCount = mapData.trainRouteLines.size();
+        }
+        return cachedTrainRouteLines;
+    }
+
+    private void rebuildTrainRouteLinesCache() {
+        Object2IntOpenHashMap<Line> newCache = new Object2IntOpenHashMap<>(mapData.trainRouteLines.size());
+        int color = withAlpha(TRAIN_ROUTE_COLOR, FULL_ALPHA);
+        for (AechronisMapData.NodeBorderLine l : mapData.trainRouteLines) {
+            newCache.put(new Line(l.x1, l.z1, l.x2, l.z2), color);
+        }
+        cachedTrainRouteLines = newCache;
     }
 
     // ---- Helpers ----
