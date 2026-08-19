@@ -23,10 +23,11 @@ alongside other servers/modpacks.
 - **Town & nation labels** — town names at their spawn point; nation names at
   each nation's capital.
 - **Buildings** — colored ring markers per building type (port, factory),
-  sourced from `nodes/buildings.json`. Actual icons are planned when I can test them.
-- **Train network** — a minecart icon at each station on the minimap; station
-  labels (id, quality tier, banned flag) and route lines between connected
-  stations on the world map, sourced from `nodes/trains.json`.
+  sourced from `nodes/buildings.json`. Real icons (same technique as the train
+  station icon below) are planned next.
+- **Train network** — a minecart icon at each station on both the minimap and
+  world map; station labels (id, quality tier, banned flag) and route lines
+  between connected stations on the world map, sourced from `nodes/trains.json`.
 - **War visuals**, reconciled from `nodes/war.json` and driven live off
   in-game `[War]` chat messages:
   - *Occupied territories* — a diagonal marker across a captured-but-not-yet-annexed
