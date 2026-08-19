@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import xaeroplus.feature.render.DrawContext;
 import xaeroplus.feature.render.DrawFeature;
 import xaeroplus.feature.render.DrawFeatureFactory;
 import xaeroplus.feature.render.ellipse.Ellipse;
@@ -25,8 +26,10 @@ public class AechronisRenderer extends Module {
     // against the chunk grid (16 blocks/chunk); revisit once real icon art replaces this.
     private static final int   BUILDING_MARKER_RADIUS    = 20;
     private static final float BUILDING_MARKER_THICKNESS = 0.3f;
-    // Train stations render as plain text labels (icon approach tried and dropped per user
-    // request — see AechronisMapData.loadTrainsData() for how trainStations gets built).
+    // Train station icon half-size in world blocks (see AechronisTrainIconDrawFeature) — a
+    // filled textured icon reads clearly at a smaller size than the hollow building ring
+    // above, so this starts smaller than BUILDING_MARKER_RADIUS; tune after in-game check.
+    private static final int   TRAIN_ICON_HALF_SIZE       = 12;
     private static final int   TRAIN_ROUTE_COLOR          = 0x808080; // neutral rail gray
     // Every overlay element except the nation fill renders fully opaque, always —
     // opacity is only user-adjustable for the nation fill (see AechronisConfig).
@@ -201,11 +204,15 @@ public class AechronisRenderer extends Module {
         );
         // Train network — station text labels (id/tier/banned flag) and route lines between
         // connected station pairs. See AechronisMapData.loadTrainsData() for how
-        // trainStations/trainRouteLines get built.
+        // trainStations/trainRouteLines get built. World-map only — the minimap shows the
+        // icon instead (AechronisTrainIconDrawFeature below); showing both on the same
+        // surface is redundant clutter at minimap scale.
         ourFeatures.add(
-                DrawFeatureFactory.text(
-                        "AechronisTrainStationLabels",
-                        this::getTrainStationTexts
+                new WorldMapOnlyDrawFeature(
+                        DrawFeatureFactory.text(
+                                "AechronisTrainStationLabels",
+                                this::getTrainStationTexts
+                        )
                 )
         );
         ourFeatures.add(
@@ -216,6 +223,12 @@ public class AechronisRenderer extends Module {
                         () -> AechronisConfig.get().trainRouteLineWidth,
                         1000
                 )
+        );
+        // Real textured icon (vanilla minecart) per station — implements DrawFeature
+        // directly since DrawFeatureFactory has no textured-icon support. See
+        // AechronisTrainIconDrawFeature's class doc for the rendering approach.
+        ourFeatures.add(
+                new AechronisTrainIconDrawFeature("AechronisTrainStationIcons", mapData, TRAIN_ICON_HALF_SIZE)
         );
     }
 
@@ -453,7 +466,7 @@ public class AechronisRenderer extends Module {
     private Long2ObjectOpenHashMap<Text> getPortTexts(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Long2ObjectOpenHashMap<>();
-        if (!cfg.showPorts) return new Long2ObjectOpenHashMap<>();
+        if (!cfg.showBuildingLabels) return new Long2ObjectOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Long2ObjectOpenHashMap<>();
 
         if (mapData.ports.size() != lastPortCount) {
@@ -477,7 +490,7 @@ public class AechronisRenderer extends Module {
     private Object2IntMap<Ellipse> getBuildingMarkers(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Object2IntOpenHashMap<>();
-        if (!cfg.showPorts) return new Object2IntOpenHashMap<>();
+        if (!cfg.showBuildingMarkers) return new Object2IntOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Object2IntOpenHashMap<>();
 
         if (mapData.ports.size() != lastBuildingMarkerCount) {
@@ -500,7 +513,7 @@ public class AechronisRenderer extends Module {
     private Long2ObjectOpenHashMap<Text> getTrainStationTexts(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Long2ObjectOpenHashMap<>();
-        if (!cfg.showTrainStations) return new Long2ObjectOpenHashMap<>();
+        if (!cfg.showTrainStationLabels) return new Long2ObjectOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Long2ObjectOpenHashMap<>();
 
         if (mapData.trainStations.size() != lastTrainStationTextCount) {
@@ -528,7 +541,7 @@ public class AechronisRenderer extends Module {
     private Object2IntMap<Line> getTrainRouteLines(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Object2IntOpenHashMap<>();
-        if (!cfg.showTrainStations) return new Object2IntOpenHashMap<>();
+        if (!cfg.showTrainRoutes) return new Object2IntOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Object2IntOpenHashMap<>();
 
         if (mapData.trainRouteLines.size() != lastTrainRouteLineCount) {
@@ -552,5 +565,35 @@ public class AechronisRenderer extends Module {
     /** Apply alpha to raw RGB — returns ARGB int */
     private int withAlpha(int rgb, int alpha) {
         return (alpha << 24) | (rgb & 0x00FFFFFF);
+    }
+
+    // Restricts a DrawFeature to the world map — DrawFeatureFactory features otherwise
+    // render on both the minimap and world map with no way to filter by surface.
+    private static class WorldMapOnlyDrawFeature implements DrawFeature {
+        private final DrawFeature delegate;
+
+        WorldMapOnlyDrawFeature(DrawFeature delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String id() {
+            return delegate.id();
+        }
+
+        @Override
+        public void render(DrawContext ctx) {
+            if (ctx.worldmap()) delegate.render(ctx);
+        }
+
+        @Override
+        public void invalidateCache() {
+            delegate.invalidateCache();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 }

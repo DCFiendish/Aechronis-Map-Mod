@@ -23,6 +23,9 @@ public class AechronisMapMod implements ClientModInitializer {
 		// Register config
 		AutoConfig.register(AechronisConfig.class, GsonConfigSerializer::new);
 
+		// Register text-label toggle keybinds (unbound by default, see AechronisKeyBinds)
+		AechronisKeyBinds.init();
+
 		// Create data objects
 		mapData = new AechronisMapData();
 		fetcher = new AechronisDataFetcher();
