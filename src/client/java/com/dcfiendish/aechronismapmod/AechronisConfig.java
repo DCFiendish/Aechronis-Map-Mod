@@ -27,9 +27,16 @@ public class AechronisConfig implements ConfigData {
     public boolean showNodeLabels = true;
     public boolean showTownLabels = true;
     public boolean showNationLabels = true;
-    public boolean showPorts = true;
+    // Split from the old combined "showPorts" toggle: labels (text) and markers (ring
+    // icons) are independently toggleable, matching every other text overlay below.
+    public boolean showBuildingLabels = true;
+    public boolean showBuildingMarkers = true;
     public boolean whiteBorders = false;
-    public boolean showTrainStations = true;
+    // Split from the old combined "showTrainStations" toggle: labels (text) and route
+    // lines are independently toggleable, matching every other text overlay below.
+    public boolean showTrainStationLabels = true;
+    public boolean showTrainRoutes = true;
+    public boolean showTrainStationIcons = true;
     public float trainRouteLineWidth = 0.14f;
 
     // ── Getters used by renderer ──────────────────────────────

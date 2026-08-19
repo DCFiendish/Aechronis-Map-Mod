@@ -36,6 +36,28 @@
   "text.autoconfig.aechronismapmod.option.showNationLabels": "Show Nation Labels",
   "text.autoconfig.aechronismapmod.option.showNationLabels.tooltip": "Toggle nation name labels (shown larger, at each nation's capital) on/off",
 
-  "text.autoconfig.aechronismapmod.option.showPorts": "Show Ports",
-  "text.autoconfig.aechronismapmod.option.showPorts.tooltip": "Toggle port markers (name labels, colored by teleport group) on/off"
+  "text.autoconfig.aechronismapmod.option.showBuildingLabels": "Show Building Labels",
+  "text.autoconfig.aechronismapmod.option.showBuildingLabels.tooltip": "Toggle building name text labels (ports, factories) on/off",
+
+  "text.autoconfig.aechronismapmod.option.showBuildingMarkers": "Show Building Markers",
+  "text.autoconfig.aechronismapmod.option.showBuildingMarkers.tooltip": "Toggle building ring markers (ports, factories), colored by type, on/off",
+
+  "text.autoconfig.aechronismapmod.option.showTrainStationLabels": "Show Train Station Labels",
+  "text.autoconfig.aechronismapmod.option.showTrainStationLabels.tooltip": "Toggle train station text labels (id, tier, banned flag) on/off",
+
+  "text.autoconfig.aechronismapmod.option.showTrainRoutes": "Show Train Routes",
+  "text.autoconfig.aechronismapmod.option.showTrainRoutes.tooltip": "Toggle train route lines between connected stations on/off",
+
+  "text.autoconfig.aechronismapmod.option.showTrainStationIcons": "Show Train Station Icons",
+  "text.autoconfig.aechronismapmod.option.showTrainStationIcons.tooltip": "Toggle the minecart icon marker at each train station on/off",
+
+  "text.autoconfig.aechronismapmod.option.trainRouteLineWidth": "Train Route Line Width",
+  "text.autoconfig.aechronismapmod.option.trainRouteLineWidth.tooltip": "Line width of train route lines",
+
+  "key.category.aechronismapmod.general": "Aechronis Nation Overlay",
+  "key.aechronismapmod.toggle_node_labels": "Toggle Node Labels",
+  "key.aechronismapmod.toggle_town_labels": "Toggle Town Labels",
+  "key.aechronismapmod.toggle_nation_labels": "Toggle Nation Labels",
+  "key.aechronismapmod.toggle_building_labels": "Toggle Building Labels",
+  "key.aechronismapmod.toggle_train_station_labels": "Toggle Train Station Labels"
 }
