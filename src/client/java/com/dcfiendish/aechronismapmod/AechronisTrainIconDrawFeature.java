@@ -1,62 +1,63 @@
 package com.dcfiendish.aechronismapmod;
 
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.rendertype.OutputTarget;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.resources.Identifier;
+import org.joml.Matrix4f;
 import xaero.hud.minimap.element.render.MinimapElementGraphics;
+import xaero.lib.client.graphics.XaeroRenderType;
 import xaeroplus.feature.render.DrawContext;
 import xaeroplus.feature.render.DrawFeature;
 
 /**
  * Train station icon — a real textured item icon (vanilla minecart) instead of the flat
- * colored-ring placeholder buildings still use. Minimap only — the world map keeps its
- * existing text label (see AechronisRenderer.getTrainStationTexts()) instead of an icon.
+ * colored-ring placeholder buildings still use.
  *
- * Implements XaeroPlus's DrawFeature interface directly rather than going through
- * DrawFeatureFactory, which has no textured-icon support (only chunk highlights, ellipses,
- * lines, text — confirmed against the real xaeroplus-2.35.1+fabric-26.2 jar). Draws via
- * MinimapElementGraphics — the same utility Xaero's own waypoint icons use internally,
- * through RenderPipelines.GUI_TEXTURED (no depth test, composes correctly with the map's
- * PoseStack transform) — confirmed live in-game: shows at the correct position on the
- * minimap at every zoom level.
+ * Minimap: drawn via MinimapElementGraphics.blit() (RenderPipelines.GUI_TEXTURED) — an
+ * immediate draw, the same utility Xaero's own waypoint icons use on the minimap.
  *
- * World map deliberately dropped, not just pending — multiple approaches were tried and
- * none rendered correctly there:
- *   1. This same MinimapElementGraphics/blit() approach, swapped to MapElementGraphics (the
- *      world-map equivalent): draws immediately (confirmed via decompiled bytecode — blit()
- *      calls ImmediateRenderUtil.texturedRect() directly), and on the world map that lands
- *      before GuiMap paints its own tile background, so it got painted over every frame.
- *   2. Routed through XaeroPlus's shared deferred vertex buffer instead (ctx.renderTypeBuffers()
- *      + a custom RenderType via XaeroRenderType.createRenderType() + GuiMap
- *      .renderTexturedModalRect()) — the same mechanism the text/line/ellipse features use,
- *      and it did fix "invisible on world map." But the icon then visibly separated from its
- *      own text label while zooming (drifted north/south, worse the more you zoomed).
- *   3. Rewrote the position math to exactly match AbstractTextDrawFeature's own (proven
- *      correct) camera-relative computation — ctx.untranslatedMapViewMatrix() plus
- *      subtracting ctx.cameraBlockX()/cameraBlockZ() in long arithmetic before narrowing to
- *      float, confirmed byte-for-byte identical to the label's own decompiled code. Drift
- *      persisted — ruling out a coordinate-math bug.
- *   4. Rebuilt the custom RenderType from the same base pipeline snippet
- *      (RenderPipelines.WORLD_TEXT_SNIPPET) the text label's RenderType uses, instead of
- *      xaerolib's generic RP_POSITION_COLOR_TEX_TRANSLUCENT — the one remaining structural
- *      difference found versus the label's draw path. Drift persisted.
- *   5. Tried registering the RenderType into Xaero's fixed draw order
- *      (ctx.renderTypeBuffers().addToFixedOrder(...)), matching how Xaero's own built-in
- *      RenderTypes register themselves — crashed the client instead
- *      (IllegalArgumentException: "already in the fixed order"; the buffer provider isn't
- *      safe to re-register against on every render() call).
- * Since both the icon and the label read position from the same DrawContext within the same
- * render() loop iteration, their computed positions cannot mathematically diverge within a
- * single frame — meaning whatever's left is a render-timing/animation artifact inside
- * XaeroPlus/GuiMap's own internals (e.g. one RenderType's buffer flushing on a different
- * cadence than another during the zoom animation), not something reachable from a
- * DrawFeature's own code. Not worth further reverse-engineering here — the text label
- * already covers train stations on the world map.
+ * World map: drawn through XaeroPlus's shared XaeroBufferProvider (ctx.renderTypeBuffers()),
+ * the SAME mechanism AbstractTextDrawFeature uses for every text label on the world map
+ * (decompiled and cross-checked against xaeroplus-2.35.1+fabric-26.2). Earlier attempts at
+ * this (see git history on this file) used that same buffer provider but never called
+ * endBatch() themselves afterward. XaeroBufferProvider.getBuffer()/endBatch() (see
+ * xaero.lib.client.graphics.XaeroBufferProvider, decompiled) queue geometry in a
+ * per-RenderType map that only gets flushed — actually drawn — by an explicit endBatch()
+ * call; nothing flushes it automatically at end of frame. Without our own endBatch() call,
+ * the icon's vertices sat queued until some UNRELATED feature's later endBatch() call
+ * happened to flush them, one full frame behind the label's own synchronous flush — exactly
+ * the "drifts, worse while zooming" symptom previously observed (icon always one frame
+ * stale relative to the label during continuous position changes). Calling endBatch()
+ * ourselves at the end of render(), the same way AbstractTextDrawFeature.render() does for
+ * text, keeps the icon's draw synchronous with the label's every frame.
+ *
+ * The RenderType/pipeline used for the world map is
+ * XaeroRenderType.RP_POSITION_COLOR_TEX_TRANSLUCENT_NO_DEPTH (xaero.lib, the shared
+ * rendering library both XaeroPlus and Xaero's own World Map depend on) — a public,
+ * ready-made textured-quad pipeline (alpha blended, no depth test, no cull), the same
+ * pipeline family Xaero's World Map itself uses for its frame/branch-update textures
+ * (xaero.map.graphics.MapRenderHelper). We only supply our own texture/sampler binding;
+ * no custom shader needed, and no per-frame position math beyond copying
+ * AbstractTextDrawFeature's own (proven correct) camera-relative computation.
  */
 public class AechronisTrainIconDrawFeature implements DrawFeature {
     private static final Identifier ICON_TEXTURE =
             Identifier.fromNamespaceAndPath("minecraft", "textures/item/minecart.png");
     // Vanilla item icon PNGs are natively 16x16 — used to normalize the blit's UV range.
     private static final int ICON_TEXTURE_SIZE = 16;
+
+    // Built lazily (first referenced from render(), well after world-join/GPU-init —
+    // see AechronisRenderer.onEnable()), same as XaeroPlus's own XaeroPlusShaders fields.
+    private static final RenderType WORLD_MAP_ICON_RENDER_TYPE = XaeroRenderType.createRenderType(
+            "aechronismapmod_train_icon",
+            RenderSetup.builder(XaeroRenderType.RP_POSITION_COLOR_TEX_TRANSLUCENT_NO_DEPTH)
+                    .withTexture("Sampler0", ICON_TEXTURE, () -> XaeroRenderType.getSimpleSampler(FilterMode.NEAREST))
+                    .setOutputTarget(OutputTarget.MAIN_TARGET)
+    );
 
     private final String id;
     private final AechronisMapData mapData;
@@ -75,12 +76,18 @@ public class AechronisTrainIconDrawFeature implements DrawFeature {
 
     @Override
     public void render(DrawContext ctx) {
-        if (ctx.worldmap()) return; // see class doc — world-map icon dropped
-
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything || !cfg.showTrainStationIcons) return;
         if (mapData.trainStations.isEmpty()) return;
 
+        if (ctx.worldmap()) {
+            renderWorldMap(ctx);
+        } else {
+            renderMinimap(ctx);
+        }
+    }
+
+    private void renderMinimap(DrawContext ctx) {
         int size = halfSize * 2;
         MinimapElementGraphics graphics = new MinimapElementGraphics(ctx.matrixStack());
         for (AechronisMapData.TrainStationInfo s : mapData.trainStations) {
@@ -88,6 +95,25 @@ public class AechronisTrainIconDrawFeature implements DrawFeature {
                     ICON_TEXTURE_SIZE, ICON_TEXTURE_SIZE, ICON_TEXTURE_SIZE,
                     RenderPipelines.GUI_TEXTURED);
         }
+    }
+
+    // Mirrors AbstractTextDrawFeature.render()'s own position math and buffer/flush
+    // pattern exactly (long-precision camera diff narrowed to float, fresh Matrix4f off
+    // ctx.untranslatedMapViewMatrix() every frame, explicit endBatch() before returning)
+    // so the icon can never end up a frame behind the station label it's paired with.
+    private void renderWorldMap(DrawContext ctx) {
+        VertexConsumer vertexConsumer = ctx.renderTypeBuffers().getBuffer(WORLD_MAP_ICON_RENDER_TYPE);
+        for (AechronisMapData.TrainStationInfo s : mapData.trainStations) {
+            float relativeX = (float) ((long) s.x - ctx.cameraBlockX());
+            float relativeZ = (float) ((long) s.z - ctx.cameraBlockZ());
+            Matrix4f iconMatrix = new Matrix4f(ctx.untranslatedMapViewMatrix())
+                    .translate(relativeX, relativeZ, 0.0F);
+            vertexConsumer.addVertex(iconMatrix, -halfSize, halfSize, 0.0F).setColor(1f, 1f, 1f, 1f).setUv(0.0F, 1.0F);
+            vertexConsumer.addVertex(iconMatrix, halfSize, halfSize, 0.0F).setColor(1f, 1f, 1f, 1f).setUv(1.0F, 1.0F);
+            vertexConsumer.addVertex(iconMatrix, halfSize, -halfSize, 0.0F).setColor(1f, 1f, 1f, 1f).setUv(1.0F, 0.0F);
+            vertexConsumer.addVertex(iconMatrix, -halfSize, -halfSize, 0.0F).setColor(1f, 1f, 1f, 1f).setUv(0.0F, 0.0F);
+        }
+        ctx.renderTypeBuffers().endBatch();
     }
 
     @Override
@@ -98,7 +124,8 @@ public class AechronisTrainIconDrawFeature implements DrawFeature {
 
     @Override
     public void close() {
-        // MinimapElementGraphics owns its own throwaway buffer provider per call; nothing
-        // of ours to release.
+        // MinimapElementGraphics owns its own throwaway buffer provider per call.
+        // WORLD_MAP_ICON_RENDER_TYPE's RenderSetup is built once, statically, and reused
+        // for the mod's lifetime — nothing per-instance to release.
     }
 }

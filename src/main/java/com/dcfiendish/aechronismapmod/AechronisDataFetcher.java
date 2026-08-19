@@ -120,14 +120,13 @@ public class AechronisDataFetcher {
             mapData.loadTownsData(townsJson, townsStr);
             LOGGER.info("World and territory data loaded.");
         } catch (Throwable e) {
-            // Must catch Throwable, not just Exception: world.json can be tens of MB (a
-            // large local test world's is ~16MB), and parsing that into a full Gson tree
-            // is a real OutOfMemoryError risk on a client already carrying a heavy
-            // modpack. An escaped Error here (Exception doesn't catch it) skips the retry
-            // below entirely — borders/chunk fills silently stay empty for the rest of the
-            // session, even though the smaller, unrelated towns.json poll (nation/town
-            // labels) keeps working fine, exactly the "labels work, nothing else does"
-            // symptom this retry exists to prevent.
+            // Must catch Throwable, not just Exception: world.json is currently ~16MB, and
+            // parsing that into a full Gson tree is a real OutOfMemoryError risk on a client
+            // already carrying a heavy modpack. An escaped Error here (Exception doesn't
+            // catch it) skips the retry below entirely -- borders/chunk fills silently stay
+            // empty for the rest of the session, even though the smaller, unrelated
+            // towns.json poll (nation/town labels) keeps working fine, exactly the
+            // "labels work, nothing else does" symptom this retry exists to prevent.
             LOGGER.warn("World fetch error: {} — retrying in {}s.", e.getMessage(), WORLD_FETCH_RETRY_DELAY_SECONDS);
             scheduler.schedule(this::fetchWorldAndTerritories, WORLD_FETCH_RETRY_DELAY_SECONDS, TimeUnit.SECONDS);
         }
@@ -159,7 +158,7 @@ public class AechronisDataFetcher {
 
     // fetchTownsJson/fetchWarJson also catch Throwable, not just Exception: both run via
     // scheduleAtFixedRate, and per ScheduledExecutorService's contract, an escaped Throwable
-    // from one execution permanently cancels ALL future executions of that task — not just
+    // from one execution permanently cancels ALL future executions of that task -- not just
     // that one poll. Catching only Exception would silently kill the entire recurring poll
     // for the rest of the session the first time either hit an Error.
     private void fetchTownsJson() {

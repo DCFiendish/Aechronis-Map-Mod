@@ -23,10 +23,11 @@ alongside other servers/modpacks.
 - **Town & nation labels** — town names at their spawn point; nation names at
   each nation's capital.
 - **Buildings** — colored ring markers per building type (port, factory),
-  sourced from `nodes/buildings.json`.
-- **Train network** — station markers (colored by quality tier, red if banned)
-  with id/tier labels, and route lines between connected stations, sourced from
-  `nodes/trains.json`.
+  sourced from `nodes/buildings.json`. Real icons (same technique as the train
+  station icon below) are planned next.
+- **Train network** — a minecart icon at each station on both the minimap and
+  world map; station labels (id, quality tier, banned flag) and route lines
+  between connected stations on the world map, sourced from `nodes/trains.json`.
 - **War visuals**, reconciled from `nodes/war.json` and driven live off
   in-game `[War]` chat messages:
   - *Occupied territories* — a diagonal marker across a captured-but-not-yet-annexed
@@ -37,6 +38,10 @@ alongside other servers/modpacks.
   - *Under-attack stripes* — a diagonal on chunks with a flag currently planted.
 - All of the above are individually toggleable and opacity/width-adjustable via
   [Mod Menu](https://modrinth.com/mod/modmenu) / [Cloth Config](https://modrinth.com/mod/cloth-config).
+  Each text-label category also has its own toggle keybind (unbound by
+  default — assign one in the vanilla Controls menu).
+- Middle Mouse clicking on a node in your world map will send a chat message with info about the node.
+- **World Map search** — type a town name or node id into the search box and press Enter to drop a temporary waypoint at its core.
 
 Factory markers are a placeholder colored ring for now — Aechronis's map server
 has no icon art for it yet, and it has never appeared in live `buildings.json`

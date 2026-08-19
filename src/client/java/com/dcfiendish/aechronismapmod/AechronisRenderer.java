@@ -204,9 +204,9 @@ public class AechronisRenderer extends Module {
         );
         // Train network — station text labels (id/tier/banned flag) and route lines between
         // connected station pairs. See AechronisMapData.loadTrainsData() for how
-        // trainStations/trainRouteLines get built. World-map only — the minimap shows the
-        // icon instead (AechronisTrainIconDrawFeature below); showing both on the same
-        // surface is redundant clutter at minimap scale.
+        // trainStations/trainRouteLines get built. World-map only — the minimap is too
+        // small for readable text at that scale, so it shows just the icon
+        // (AechronisTrainIconDrawFeature below, which renders on both surfaces).
         ourFeatures.add(
                 new WorldMapOnlyDrawFeature(
                         DrawFeatureFactory.text(
@@ -225,7 +225,9 @@ public class AechronisRenderer extends Module {
                 )
         );
         // Real textured icon (vanilla minecart) per station — implements DrawFeature
-        // directly since DrawFeatureFactory has no textured-icon support. See
+        // directly since DrawFeatureFactory has no textured-icon support. Renders on both
+        // the minimap and world map (paired with the text label above on the world map,
+        // same as the building markers' ellipse+label pairing). See
         // AechronisTrainIconDrawFeature's class doc for the rendering approach.
         ourFeatures.add(
                 new AechronisTrainIconDrawFeature("AechronisTrainStationIcons", mapData, TRAIN_ICON_HALF_SIZE)
