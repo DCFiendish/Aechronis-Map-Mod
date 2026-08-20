@@ -453,6 +453,28 @@ public class AechronisMapData {
             }
         }
 
+        // Towns not grouped into any real nation — which, on a fresh Aechronis map, can be
+        // EVERY town, since the top-level "nations" object starts out completely empty
+        // until players actually found/join one — still carry their own individual "color"
+        // field in towns.json. Without this fallback, every one of those towns' territories
+        // would resolve to no nation at all and get skipped by the ownership diff below,
+        // leaving the whole map uncolored even though per-town color data exists. Treat each
+        // such town as a solo "nation" of one, keyed by its own name and colored by its own
+        // "color" field; the moment a town actually joins a real nation it'll appear in
+        // nationsForTowns above and this fallback stops applying to it.
+        Map<String, Integer> soloTownColors = new HashMap<>();
+        JsonObject townsForSolo = towns.has("towns") ? towns.getAsJsonObject("towns") : new JsonObject();
+        for (Map.Entry<String, JsonElement> e : townsForSolo.entrySet()) {
+            String townName = e.getKey();
+            if (townNation.containsKey(townName)) continue; // already in a real nation
+            JsonObject town = e.getValue().getAsJsonObject();
+            if (!town.has("color") || town.get("color").isJsonNull()) continue;
+            JsonArray c = town.getAsJsonArray("color");
+            if (c.size() < 3) continue;
+            townNation.put(townName, townName);
+            soloTownColors.put(townName, rgb(c.get(0).getAsInt(), c.get(1).getAsInt(), c.get(2).getAsInt()));
+        }
+
         this.townNationMap = new HashMap<>(townNation);
 
         Map<String, String> territoryNation = new HashMap<>();
@@ -618,6 +640,12 @@ public class AechronisMapData {
                     }
                 }
             }
+        }
+        // Merge in solo-town colors computed above (putIfAbsent: a real nation's color
+        // always wins over a same-named solo-town fallback in the unlikely event of a
+        // name collision).
+        for (Map.Entry<String, Integer> e : soloTownColors.entrySet()) {
+            newNationColors.putIfAbsent(e.getKey(), e.getValue());
         }
         this.nationColors = newNationColors;
 
