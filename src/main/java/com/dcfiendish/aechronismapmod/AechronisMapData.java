@@ -134,14 +134,21 @@ public class AechronisMapData {
     // (using the now-stale snapshot), leaving it flagged occupied with no diagonal to render.
     private final Object occupiedStateLock = new Object();
 
-    // Set to true only when an actual OWNERSHIP change was applied this poll (new
-    // owner, or an owning nation's color itself changed) — NOT set unconditionally
-    // every poll anymore. The renderer's alpha-cache/border-cache rebuilds key off
-    // this, so they now only redo work when something genuinely changed, instead
-    // of every 60 seconds regardless. This is intentionally time-agnostic: it
-    // doesn't matter whether changes happen on schedule, late, or off-schedule —
-    // it only reacts to towns.json actually differing from last poll.
-    public volatile boolean dirty = false;
+    // Incremented (never reset) only when an actual OWNERSHIP change was applied (new
+    // owner, or an owning nation's color itself changed) — NOT touched unconditionally
+    // every poll. The renderer's border/label caches key off this, so they only redo
+    // work when something genuinely changed, instead of every frame regardless. This is
+    // intentionally time-agnostic: it doesn't matter whether changes happen on schedule,
+    // late, or off-schedule — it only reacts to towns.json actually differing from last
+    // poll.
+    //
+    // A monotonic counter rather than a consume-and-reset boolean deliberately: multiple
+    // independent renderer caches (node borders, node/town/nation labels — see
+    // AechronisRenderer) each need to observe every change exactly once, on their own
+    // schedule, without depending on being checked before some OTHER cache resets a
+    // shared flag back to false first. Each cache instead remembers the last version
+    // number it reacted to and compares against the current one.
+    public volatile long dataVersion = 0;
 
     private JsonObject worldData = null;
 
@@ -462,6 +469,16 @@ public class AechronisMapData {
         // such town as a solo "nation" of one, keyed by its own name and colored by its own
         // "color" field; the moment a town actually joins a real nation it'll appear in
         // nationsForTowns above and this fallback stops applying to it.
+        //
+        // Safe to color EVERY town this way, even on a map where that's currently ~all
+        // 13,000+ owned territories (~1.5M chunks): the renderer's nation-fill draw feature
+        // is windowed (see AechronisRenderer.getNationChunksInWindow()) — it only ever
+        // computes/renders whatever's in the current minimap/world-map viewport, so render
+        // cost stays bounded by what's on screen regardless of total colored volume. An
+        // earlier attempt to cap this at the DATA layer instead (only color towns already in
+        // a real nation) was reverted — it just delays the identical problem, since most of
+        // these placeholder towns are expected to become real player nations soon, claiming
+        // the same territory footprint.
         Map<String, Integer> soloTownColors = new HashMap<>();
         JsonObject townsForSolo = towns.has("towns") ? towns.getAsJsonObject("towns") : new JsonObject();
         for (Map.Entry<String, JsonElement> e : townsForSolo.entrySet()) {
@@ -852,7 +869,7 @@ public class AechronisMapData {
         }
 
         if (changedCount > 0) {
-            this.dirty = true;
+            this.dataVersion++;
         }
 
         String pollSummary = "Towns poll: " + changedCount + " territories changed ownership/color, " +
@@ -1136,13 +1153,14 @@ public class AechronisMapData {
      * clear the occupied state without recoloring — the next ownership diff pass will
      * do the recolor when it detects the color change.
      *
-     * Sets mapData.dirty when it actually recolors chunks — this method is the only
-     * writer to nationChunksRaw reachable from a chat event (via liberateTerritory()),
-     * and unlike the loadTownsData() ownership-diff loop (which sets dirty itself),
-     * nothing else invalidates the renderer's alpha-cache for a chat-triggered
-     * liberation. Without this, liberateTerritory() also updates lastTerritoryColor to
-     * match, so the *next* towns.json poll sees "no change" for this territory too —
-     * the recolor could otherwise never actually reach the screen.
+     * Bumps mapData.dataVersion when it actually recolors chunks — this method is the
+     * only writer to nationChunksRaw reachable from a chat event (via
+     * liberateTerritory()), and unlike the loadTownsData() ownership-diff loop (which
+     * bumps dataVersion itself), nothing else invalidates the renderer's border/label
+     * caches for a chat-triggered liberation. Without this, liberateTerritory() also
+     * updates lastTerritoryColor to match, so the *next* towns.json poll sees "no
+     * change" for this territory too — the recolor could otherwise never actually
+     * reach the screen.
      */
     public void annexTerritory(String tid, Integer newOwnerColor) {
         AechronisWarCapture.logState("annexTerritory: tid=" + tid + " newOwnerColor=" +
@@ -1166,7 +1184,7 @@ public class AechronisMapData {
                 }
             }
         }
-        this.dirty = true;
+        this.dataVersion++;
     }
 
     /** Clears any lingering per-chunk war state (warChunks/underAttackChunks) for every
@@ -1197,20 +1215,33 @@ public class AechronisMapData {
     private record ResolvedNation(String nation, int color) {}
 
     /**
-     * Builds a fresh alpha-applied snapshot of the nation-fill chunk colors, safely
-     * w.r.t. concurrent writers (the towns.json poll diff, and chat-driven capture
-     * events). Uses fastutil's primitive entry-set iteration — no boxing of the
-     * underlying long keys/values, unlike a plain Map.Entry<Long,Long> loop. Called
-     * by the renderer only when mapData.dirty is true or the alpha config changed,
-     * not every frame.
+     * Builds a fresh alpha-applied snapshot of the nation-fill chunk colors within a
+     * chunk-coordinate bounding box, safely w.r.t. concurrent writers (the towns.json
+     * poll diff, and chat-driven capture events). Uses fastutil's primitive entry-set
+     * iteration — no boxing of the underlying long keys/values, unlike a plain
+     * Map.Entry<Long,Long> loop.
+     *
+     * Bounded rather than whole-map: on a map where nearly every territory is owned
+     * (currently true here — see the solo-town-color fallback in loadTownsData()), the
+     * full nation-fill set can be well over a million chunks. The renderer only ever
+     * needs whatever's in the current minimap/world-map viewport (see
+     * AechronisRenderer.getNationChunksInWindow()), so bounding here keeps both this
+     * scan and the resulting render buffer proportional to what's on screen rather than
+     * to total claimed territory. Called off the render thread, roughly every 500ms per
+     * visible window, by XaeroPlus's own async highlight cache — not gated on
+     * mapData.dataVersion, since it's cheap enough to just recompute fresh each tick.
      */
-    public Long2LongOpenHashMap buildAlphaCache(int alpha) {
-        Long2LongOpenHashMap result;
+    public Long2LongOpenHashMap buildAlphaCacheInBounds(
+            int alpha, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {
+        Long2LongOpenHashMap result = new Long2LongOpenHashMap();
         synchronized (nationChunksLock) {
-            result = new Long2LongOpenHashMap(nationChunksRaw.size());
             for (Long2LongMap.Entry e : nationChunksRaw.long2LongEntrySet()) {
+                long pos = e.getLongKey();
+                int cx = ChunkPos.getX(pos);
+                int cz = ChunkPos.getZ(pos);
+                if (cx < minChunkX || cx > maxChunkX || cz < minChunkZ || cz > maxChunkZ) continue;
                 int rgb = (int) e.getLongValue();
-                result.put(e.getLongKey(), (long) withAlpha(rgb, alpha));
+                result.put(pos, (long) withAlpha(rgb, alpha));
             }
         }
         return result;

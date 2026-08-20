@@ -71,8 +71,10 @@ public class AechronisDataFetcher {
         // and torn down continuously during play (unlike buildings, which are effectively
         // static once placed), and — unlike towns.json's poll — there's no chat event to
         // catch new stations between polls, so this is the only path that ever notices one.
+        // 10 minutes, not 30 seconds: station/route changes are rare compared to territory
+        // ownership, so there's no need to poll anywhere near as often as towns.json.
         if (trainsPollFuture == null || trainsPollFuture.isCancelled()) {
-            trainsPollFuture = scheduler.scheduleAtFixedRate(this::fetchTrains, 3, 30, TimeUnit.SECONDS);
+            trainsPollFuture = scheduler.scheduleAtFixedRate(this::fetchTrains, 3, 600, TimeUnit.SECONDS);
         }
     }
 
