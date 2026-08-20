@@ -19,12 +19,11 @@ public class AechronisDataFetcher {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Aechronis");
 
-    // TEST-FORK BRANCH: pointed at the private fork server's map data instead of the
-    // live map.aechronis.net endpoints, so the overlay can be exercised against real
-    // data on the fork before it exists on the live server. Confirmed live via curl:
-    // http://150.136.235.233/nodes-map/nodes/{world,towns,buildings,war,trains}.json
-    // all return real JSON (trains.json included). Do not merge this branch into master.
-    private static final String MAP_BASE      = "http://150.136.235.233/nodes-map/";
+    // TEST-FORK BRANCH: only the server-address gate in AechronisMapMod (JOIN handler)
+    // is redirected to the private fork's IP — map data here still comes from the real
+    // map.aechronis.net endpoints, unchanged from master. Do not merge this branch into
+    // master (the address gate itself still needs to point back at aechronis.net there).
+    private static final String MAP_BASE      = "https://map.aechronis.net/";
     private static final String TOWNS_URL     = MAP_BASE + "nodes/towns.json";
     private static final String WORLD_URL     = MAP_BASE + "nodes/world.json";
     private static final String WAR_URL       = MAP_BASE + "nodes/war.json";
