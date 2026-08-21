@@ -57,6 +57,22 @@
   "text.autoconfig.aechronismapmod.option.trainStationIconSize": "Train Station Icon Size",
   "text.autoconfig.aechronismapmod.option.trainStationIconSize.tooltip": "Size of the train station minecart icon, as a multiplier of the default size (1.0 = default, smaller values shrink it)",
 
+  "text.autoconfig.aechronismapmod.option.autoChunkBorders": "Auto Chunk Border Relation Colors (F3+G)",
+  "text.autoconfig.aechronismapmod.option.autoChunkBorders.tooltip": "Recolor chunk borders (F3+G debug overlay) by your relation to the chunk's owner: own town, own nation, ally, enemy, or neutral",
+  "text.autoconfig.aechronismapmod.option.chunkBorderTownColor": "Own Town Color",
+  "text.autoconfig.aechronismapmod.option.chunkBorderTownColor.tooltip": "Chunk border color for territory owned by your own town",
+  "text.autoconfig.aechronismapmod.option.chunkBorderNationColor": "Own Nation Color",
+  "text.autoconfig.aechronismapmod.option.chunkBorderNationColor.tooltip": "Chunk border color for territory owned by another town in your own nation",
+  "text.autoconfig.aechronismapmod.option.chunkBorderAllyColor": "Ally Color",
+  "text.autoconfig.aechronismapmod.option.chunkBorderAllyColor.tooltip": "Chunk border color for territory owned by an allied nation",
+  "text.autoconfig.aechronismapmod.option.chunkBorderEnemyColor": "Enemy Color",
+  "text.autoconfig.aechronismapmod.option.chunkBorderEnemyColor.tooltip": "Chunk border color for territory owned by an enemy nation",
+  "text.autoconfig.aechronismapmod.option.chunkBorderNeutralColor": "Neutral Color",
+  "text.autoconfig.aechronismapmod.option.chunkBorderNeutralColor.tooltip": "Chunk border color for territory owned by a nation you have no relation with",
+
+  "text.autoconfig.aechronismapmod.option.autoTSpawn": "Auto /t spawn on Respawn",
+  "text.autoconfig.aechronismapmod.option.autoTSpawn.tooltip": "Automatically run /t spawn after respawning (off by default)",
+
   "key.category.aechronismapmod.general": "Aechronis Nation Overlay",
   "key.aechronismapmod.toggle_node_labels": "Toggle Node Labels",
   "key.aechronismapmod.toggle_town_labels": "Toggle Town Labels",
