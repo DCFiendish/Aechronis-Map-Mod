@@ -3,11 +3,7 @@
 A Fabric client mod that adds a live nation overlay to Xaero's
 Minimap and World Map, built for the [Nodes](https://github.com/Aechronis/nodes)
 town/nation plugin running on [Aechronis](https://aechronis.net/)
-(`play.aechronis.net`). It polls the server's public map-data endpoints
-(`https://map.aechronis.net/nodes/`) and Minecraft chat to keep the overlay in
-sync in near real time — nation-colored territory fills, resource node
-borders/labels, town and nation name labels, port markers, and live war
-visuals during a siege.
+(`play.aechronis.net`). 
 
 **This mod only does anything on the Aechronis server.** It checks the
 server address on join and stays fully inert (no rendering, no network
@@ -19,7 +15,7 @@ alongside other servers/modpacks.
 - **Nation territory fills** — every claimed territory tinted by its owning
   nation's color, with the home/core chunk of each territory marked distinctly.
 - **Resource node borders & labels** — territory outlines and resource-type
-  labels (diamonds, gold, iron, etc.) for nodes with resources.
+  labels (diamonds, gold, iron, etc.) for nodes with resources. Icons are planned and this is toggleable in mod menu.
 - **Town & nation labels** — town names at their spawn point; nation names at
   each nation's capital.
 - **Buildings** — colored ring markers per building type (port, factory),
@@ -27,8 +23,7 @@ alongside other servers/modpacks.
   station icon below) are planned next.
 - **Train network** — a minecart icon (size adjustable) at each station on
   both the minimap and world map; station labels (id, quality tier, banned
-  flag) and route lines between connected stations on the world map, sourced
-  from `nodes/trains.json`.
+  flag) and route lines between connected stations on the world map.
 - **Chunk border relation coloring (F3+G)** — recolors chunk borders by your
   relation to the chunk's owner (own town, own nation, ally, enemy, neutral),
   each color configurable.
@@ -66,8 +61,6 @@ replace the ring once artwork exists.
 - [Xaero's Minimap](https://modrinth.com/mod/xaeros-minimap) 26.4.2
 - [Xaero's World Map](https://modrinth.com/mod/xaeros-world-map) 1.44.2
 - Cloth Config, Mod Menu
-
-## Building
 
 Standard Fabric/Loom build, no manual steps:
 
