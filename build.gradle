@@ -39,6 +39,11 @@ dependencies {
 	compileOnly "xaero.lib:xaerolib-fabric-26.2:1.7.1"
 	implementation "maven.modrinth:cloth-config:26.2.155+fabric"
 	implementation "maven.modrinth:modmenu:20.0.1"
+
+	// Needed for @Local sugar used by AechronisChunkBorderMixin.
+	implementation "io.github.llamalad7:mixinextras-fabric:0.5.4"
+	include "io.github.llamalad7:mixinextras-fabric:0.5.4"
+	annotationProcessor "io.github.llamalad7:mixinextras-fabric:0.5.4"
 }
 
 processResources {

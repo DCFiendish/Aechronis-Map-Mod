@@ -15,6 +15,10 @@ public class AechronisMapMod implements ClientModInitializer {
 	private static AechronisDataFetcher fetcher;
 	private static AechronisRenderer renderer;
 	private static boolean rendererRegistered = false;
+	// True only while actually connected to Aechronis (mirrors the JOIN/DISCONNECT gating
+	// below). Exists so features that don't need a renderer at all — e.g. AechronisAutoTSpawn —
+	// can gate on server activation without duplicating the address check.
+	public static volatile boolean active = false;
 
 	@Override
 	public void onInitializeClient() {
@@ -25,6 +29,9 @@ public class AechronisMapMod implements ClientModInitializer {
 
 		// Register text-label toggle keybinds (unbound by default, see AechronisKeyBinds)
 		AechronisKeyBinds.init();
+
+		// Auto /t spawn on respawn (off by default, see AechronisConfig.autoTSpawn)
+		AechronisAutoTSpawn.init();
 
 		// Create data objects
 		mapData = new AechronisMapData();
@@ -51,6 +58,7 @@ public class AechronisMapMod implements ClientModInitializer {
 			String serverAddress = serverData != null ? serverData.ip : null;
 			if (serverAddress == null || !serverAddress.toLowerCase().contains("aechronis.net")) {
 				LOGGER.info("Not connected to Aechronis (address={}), mod inactive.", serverAddress);
+				active = false;
 				if (rendererRegistered) {
 					renderer.disable();
 					LOGGER.info("Renderer disabled (left Aechronis).");
@@ -58,6 +66,8 @@ public class AechronisMapMod implements ClientModInitializer {
 				fetcher.onLeaveAechronis();
 				return;
 			}
+
+			active = true;
 
 			if (!rendererRegistered) {
 				// First time ever this session: create and add the module once.
@@ -94,6 +104,7 @@ public class AechronisMapMod implements ClientModInitializer {
 		// Safe to call here regardless: onLeaveAechronis() is pure Java scheduler state
 		// (cancels a ScheduledFuture), no GL/native interaction at all.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			active = false;
 			fetcher.onLeaveAechronis();
 		});
 

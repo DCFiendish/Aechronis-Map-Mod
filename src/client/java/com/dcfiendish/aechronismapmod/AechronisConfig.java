@@ -2,6 +2,7 @@ package com.dcfiendish.aechronismapmod;
 
 import me.shedaniel.autoconfig.ConfigData;
 import me.shedaniel.autoconfig.annotation.Config;
+import me.shedaniel.autoconfig.annotation.ConfigEntry;
 import me.shedaniel.autoconfig.AutoConfig;
 
 @Config(name = "aechronismapmod")
@@ -38,6 +39,17 @@ public class AechronisConfig implements ConfigData {
     public boolean showTrainRoutes = true;
     public boolean showTrainStationIcons = true;
     public float trainRouteLineWidth = 0.14f;
+
+    // ── Chunk Border Relation Colors (F3+G) ─────────────────────
+    public boolean autoChunkBorders = true;
+    @ConfigEntry.ColorPicker() public int chunkBorderTownColor = 0x55FF55;
+    @ConfigEntry.ColorPicker() public int chunkBorderNationColor = 0x00AA00;
+    @ConfigEntry.ColorPicker() public int chunkBorderAllyColor = 0x00AAAA;
+    @ConfigEntry.ColorPicker() public int chunkBorderEnemyColor = 0xFF5555;
+    @ConfigEntry.ColorPicker() public int chunkBorderNeutralColor = 0xFFAA00;
+
+    // ── Auto /t spawn on respawn ─────────────────────────────────
+    public boolean autoTSpawn = false;
 
     // ── Getters used by renderer ──────────────────────────────
     public int getNationFillAlpha() { return (int)(nationFillOpacity / 100f * 255); }

@@ -95,6 +95,17 @@ public class AechronisMapData {
     // USERNAME from chat (see AechronisChatListener) to a nation color — the
     // chat broadcast never contains a town name, only the acting player's name.
     public volatile Map<String, String> playerNationMap = new HashMap<>();
+    // Player username -> town, built alongside playerNationMap from the same
+    // authoritative "residents" roster. Exists for chunk-border relation resolution
+    // (AechronisRelationResolver) to distinguish TOWN (same town) from NATION (same
+    // nation, different town) relative to the client player.
+    public volatile Map<String, String> playerTownMap = new HashMap<>();
+    // Nation name -> set of allied/enemy nation names, read directly from towns.json's
+    // "nations" object alongside nationColors below. Used only for chunk-border relation
+    // resolution — ALLIED requires both sides to list each other; ENEMIES fires if
+    // either side lists the other (see AechronisRelationResolver).
+    public volatile Map<String, Set<String>> nationAlliesMap = new HashMap<>();
+    public volatile Map<String, Set<String>> nationEnemiesMap = new HashMap<>();
 
     // ── Ports (from buildings.json's "port" entries, fetched ONCE — buildings are
     // effectively static). Each port: name + (x,z) + a fixed marker color. Built once
@@ -554,6 +565,7 @@ public class AechronisMapData {
             }
         }
         Map<String, String> newPlayerNationMap = new HashMap<>();
+        Map<String, String> newPlayerTownMap = new HashMap<>();
         for (Map.Entry<String, JsonElement> e : townsObj.entrySet()) {
             String townName = e.getKey();
             JsonObject town = e.getValue().getAsJsonObject();
@@ -562,10 +574,14 @@ public class AechronisMapData {
             for (JsonElement uuidEl : town.getAsJsonArray("residents")) {
                 if (uuidEl.isJsonNull()) continue;
                 String name = uuidToName.get(uuidEl.getAsString());
-                if (name != null) newPlayerNationMap.put(name, nation);
+                if (name != null) {
+                    newPlayerNationMap.put(name, nation);
+                    newPlayerTownMap.put(name, townName);
+                }
             }
         }
         this.playerNationMap = newPlayerNationMap;
+        this.playerTownMap = newPlayerTownMap;
         this.uuidToNameMap = new HashMap<>(uuidToName);
 
         // Leader name + resident count per town, for the click-to-info feature — keyed by
@@ -644,6 +660,8 @@ public class AechronisMapData {
         // Nation colors read directly from towns.json's authoritative "nations" object —
         // cheap, proportional to nation count (low dozens), not territory/chunk count.
         Map<String, Integer> newNationColors = new HashMap<>();
+        Map<String, Set<String>> newNationAlliesMap = new HashMap<>();
+        Map<String, Set<String>> newNationEnemiesMap = new HashMap<>();
         JsonObject nationsObj = towns.has("nations") ? towns.getAsJsonObject("nations") : new JsonObject();
         for (Map.Entry<String, JsonElement> e : nationsObj.entrySet()) {
             String nation = e.getKey();
@@ -657,6 +675,8 @@ public class AechronisMapData {
                     }
                 }
             }
+            newNationAlliesMap.put(nation, jsonStringArrayToSet(nationObj, "allies"));
+            newNationEnemiesMap.put(nation, jsonStringArrayToSet(nationObj, "enemies"));
         }
         // Merge in solo-town colors computed above (putIfAbsent: a real nation's color
         // always wins over a same-named solo-town fallback in the unlikely event of a
@@ -665,6 +685,8 @@ public class AechronisMapData {
             newNationColors.putIfAbsent(e.getKey(), e.getValue());
         }
         this.nationColors = newNationColors;
+        this.nationAlliesMap = newNationAlliesMap;
+        this.nationEnemiesMap = newNationEnemiesMap;
 
         // Town-derived waypoints/labels — cheap (proportional to town count), recomputed
         // every poll for simplicity; not worth diffing, this loop never touches chunks.
@@ -958,6 +980,17 @@ public class AechronisMapData {
     private static String capitalize(String s) {
         if (s.isEmpty()) return s;
         return s.substring(0, 1).toUpperCase() + s.substring(1);
+    }
+
+    /** Reads a nation's "allies"/"enemies" JSON string array (if present) into a Set. */
+    private static Set<String> jsonStringArrayToSet(JsonObject nationObj, String field) {
+        if (!nationObj.has(field) || nationObj.get(field).isJsonNull()) return Set.of();
+        JsonArray arr = nationObj.getAsJsonArray(field);
+        Set<String> result = new HashSet<>();
+        for (JsonElement el : arr) {
+            if (!el.isJsonNull()) result.add(el.getAsString());
+        }
+        return result;
     }
 
     /** Nations that are map filler rather than real player nations — skipped for
