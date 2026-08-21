@@ -118,6 +118,14 @@ public class AechronisMapData {
     // separate from the generic Building/buildings.json system above. ──────────────
     public volatile List<TrainStationInfo> trainStations = new ArrayList<>();
     public volatile List<NodeBorderLine> trainRouteLines = new ArrayList<>();
+    // Bumped every loadTrainsData() call (every 10 min — see AechronisDataFetcher). Unlike
+    // buildings/ports (fetched exactly once, so a size-based cache-invalidation check is
+    // sufficient), trains.json IS re-polled, so a renderer cache keyed only on
+    // trainStations.size()/trainRouteLines.size() would miss any poll where a station's
+    // tier/banned flag/position changed, or a route's endpoint moved, without the total
+    // count changing — the label/route render cache would then go stale forever. The
+    // renderer keys its rebuild trigger off this instead. See AechronisRenderer.
+    public volatile long trainsVersion = 0;
 
     // ── Occupation / annexation (captured-but-not-annexed) tracking ─────────
     // Per Nodes plugin mechanics (confirmed via https://nodes.soy/4-2-diplomacy-war.html):
@@ -137,12 +145,17 @@ public class AechronisMapData {
     public final Set<String> capturedTerritoryIds = ConcurrentHashMap.newKeySet();
     public final ConcurrentHashMap<String, Integer> territoryDiagonalColors = new ConcurrentHashMap<>();
     // Guards the multi-step capturedTerritoryIds/territoryDiagonalColors/chatFlipTimestamps
-    // updates in captureTerritory() and loadTownsData()'s protected-set retain/add block.
-    // Each collection is individually thread-safe, but the SEQUENCE of operations across
-    // all three isn't — without this lock, a chat-driven captureTerritory() landing between
-    // loadTownsData()'s protected-set snapshot and its retainAll calls can add a territory
-    // to capturedTerritoryIds just as territoryDiagonalColors.retainAll() strips its color
-    // (using the now-stale snapshot), leaving it flagged occupied with no diagonal to render.
+    // updates in captureTerritory(), annexTerritory(), and loadTownsData()'s protected-set
+    // retain/add block. Each collection is individually thread-safe, but the SEQUENCE of
+    // operations across all three isn't — without this lock, a chat-driven captureTerritory()
+    // landing between loadTownsData()'s protected-set snapshot and its retainAll calls can
+    // add a territory to capturedTerritoryIds just as territoryDiagonalColors.retainAll()
+    // strips its color (using the now-stale snapshot), leaving it flagged occupied with no
+    // diagonal to render. Symmetrically, a chat-driven annexTerritory() (via
+    // liberateTerritory()) landing in that same window can have its removal clobbered by the
+    // poll's addAll(newCapturedFromJson) if the just-fetched JSON snapshot still lists the
+    // territory as captured — resurrecting a stale occupied diagonal on land that was just
+    // liberated/annexed.
     private final Object occupiedStateLock = new Object();
 
     // Incremented (never reset) only when an actual OWNERSHIP change was applied (new
@@ -301,6 +314,7 @@ public class AechronisMapData {
 
         this.trainStations = newStations;
         this.trainRouteLines = newRouteLines;
+        this.trainsVersion++;
         LOGGER.info("Loaded {} train stations, {} routes.", newStations.size(), newRouteLines.size());
     }
 
@@ -452,7 +466,7 @@ public class AechronisMapData {
      * (new owner, lost owner, or the owning nation's color itself changed). On a
      * quiet poll with zero ownership changes, this touches zero chunks.
      */
-    public void loadTownsData(JsonObject towns, String rawJson) {
+    public void loadTownsData(JsonObject towns) {
         // Build town -> nation from the authoritative nations[].towns lists, NOT from
         // individual residents' own "town" field — that field can go stale (e.g. a
         // player switches towns and the old town's residents/leader record never gets
@@ -864,12 +878,10 @@ public class AechronisMapData {
         // well before CHAT_FLIP_GRACE_MS elapses. Explicitly protect anything still in
         // its grace window so it survives this poll regardless of what the JSON says.
         //
-        // The snapshot-then-retain sequence below must be atomic with respect to
-        // captureTerritory()'s writes (occupiedStateLock) — otherwise a chat-driven
-        // capture landing mid-sequence can add a territory to capturedTerritoryIds after
-        // protectedFromEviction was snapshotted, and the territoryDiagonalColors retainAll
-        // (using that now-stale snapshot) strips its just-set color right back out.
-        boolean occupiedSetChanged;
+        // The retain/add sequence below must be atomic with respect to captureTerritory()'s
+        // and annexTerritory()'s writes (occupiedStateLock) — otherwise a chat-driven
+        // capture/liberation landing mid-sequence can have its update clobbered by this
+        // block using a now-stale protectedFromEviction snapshot.
         synchronized (occupiedStateLock) {
             Set<String> protectedFromEviction = new HashSet<>(newCapturedFromJson);
             for (Map.Entry<String, Long> entry : chatFlipTimestamps.entrySet()) {
@@ -877,7 +889,6 @@ public class AechronisMapData {
             }
             // retainAll+addAll (instead of clear()+addAll) avoids a window where the set is
             // briefly empty while the renderer might be reading it on another thread.
-            occupiedSetChanged = !this.capturedTerritoryIds.equals(protectedFromEviction);
             this.capturedTerritoryIds.retainAll(protectedFromEviction);
             this.capturedTerritoryIds.addAll(newCapturedFromJson);
             this.territoryDiagonalColors.keySet().retainAll(protectedFromEviction);
@@ -886,20 +897,14 @@ public class AechronisMapData {
                 if (color != null) this.territoryDiagonalColors.put(tid, color);
             }
         }
-        if (occupiedSetChanged && rawJson != null) {
-            AechronisWarCapture.snapshotTownsJson(rawJson, "occupied-set-changed");
-        }
 
         if (changedCount > 0) {
             this.dataVersion++;
         }
 
-        String pollSummary = "Towns poll: " + changedCount + " territories changed ownership/color, " +
-                skippedGrace + " held by chat-flip grace, " +
-                skippedOccupied + " held as occupied (two-phase), " +
-                newCapturedFromJson.size() + " captured/occupied territories.";
-        LOGGER.info(pollSummary);
-        AechronisWarCapture.logState(pollSummary); // no-op unless AechronisWarCapture.ENABLED
+        LOGGER.info("Towns poll: {} territories changed ownership/color, {} held by chat-flip grace, " +
+                        "{} held as occupied (two-phase), {} captured/occupied territories.",
+                changedCount, skippedGrace, skippedOccupied, newCapturedFromJson.size());
     }
 
     /**
@@ -1064,10 +1069,8 @@ public class AechronisMapData {
         // diagonal) and would otherwise keep rendering for up to their own timeout.
         clearChunkWarState(tid);
 
-        String summary = "captureTerritory: marked tid=" + tid + " occupied by " +
-                (nation != null ? nation : capturingPlayerName) + " (base color unchanged; diagonal color set)";
-        LOGGER.info(summary);
-        AechronisWarCapture.logState(summary); // no-op unless AechronisWarCapture.ENABLED
+        LOGGER.info("captureTerritory: marked tid={} occupied by {} (base color unchanged; diagonal color set)",
+                tid, nation != null ? nation : capturingPlayerName);
     }
 
     /**
@@ -1095,10 +1098,8 @@ public class AechronisMapData {
         // "same as last" and doesn't redundantly reapply/log a color change.
         lastTerritoryColor.put(tid, color);
 
-        String summary = "liberateTerritory: tid=" + tid + " restored to " +
-                (nation != null ? nation : liberatingPlayerName) + " (occupied marker cleared)";
-        LOGGER.info(summary);
-        AechronisWarCapture.logState(summary); // no-op unless AechronisWarCapture.ENABLED
+        LOGGER.info("liberateTerritory: tid={} restored to {} (occupied marker cleared)",
+                tid, nation != null ? nation : liberatingPlayerName);
     }
 
     /**
@@ -1114,8 +1115,6 @@ public class AechronisMapData {
         ResolvedNation resolved = resolvePlayerNation(attackerName, 0xFFCC00);
         String nation = resolved.nation();
         underAttackChunks.put(pos, new UnderAttackChunk(nation != null ? nation : attackerName, resolved.color(), System.currentTimeMillis()));
-        AechronisWarCapture.logState("beginAttack: chunk(" + cx + "," + cz + ") by " +
-                (nation != null ? nation : attackerName)); // no-op unless ENABLED
     }
 
     /** Chat-triggered by `[War] Attack ... defeated` / `... stopped by an explosion` —
@@ -1123,7 +1122,6 @@ public class AechronisMapData {
      *  resolves to. */
     public void cancelAttack(int cx, int cz) {
         underAttackChunks.remove(ChunkPos.pack(cx, cz));
-        AechronisWarCapture.logState("cancelAttack: chunk(" + cx + "," + cz + ")"); // no-op unless ENABLED
     }
 
     /**
@@ -1156,8 +1154,6 @@ public class AechronisMapData {
         ResolvedNation resolved = resolvePlayerNation(attackerName, rgb(200, 200, 200));
         String nation = resolved.nation();
         warChunks.put(pos, new WarChunk(nation != null ? nation : attackerName, resolved.color(), System.currentTimeMillis()));
-        AechronisWarCapture.logState("captureChunk: chunk(" + cx + "," + cz + ") -> " +
-                (nation != null ? nation : attackerName)); // no-op unless ENABLED
     }
 
     /** Chat-triggered by `[War] X liberated chunk (cx, cz) from Y!`. Clears both
@@ -1168,7 +1164,6 @@ public class AechronisMapData {
         long pos = ChunkPos.pack(cx, cz);
         underAttackChunks.remove(pos);
         warChunks.remove(pos);
-        AechronisWarCapture.logState("liberateChunk: chunk(" + cx + "," + cz + ")"); // no-op unless ENABLED
     }
 
     /**
@@ -1196,11 +1191,21 @@ public class AechronisMapData {
      * reach the screen.
      */
     public void annexTerritory(String tid, Integer newOwnerColor) {
-        AechronisWarCapture.logState("annexTerritory: tid=" + tid + " newOwnerColor=" +
-                (newOwnerColor != null ? Integer.toHexString(newOwnerColor) : "null")); // no-op unless ENABLED
-        capturedTerritoryIds.remove(tid);
-        territoryDiagonalColors.remove(tid);
-        chatFlipTimestamps.remove(tid);
+        // Same lock as captureTerritory()/loadTownsData()'s protected-set block — this is
+        // the other writer to capturedTerritoryIds/territoryDiagonalColors/chatFlipTimestamps
+        // and runs on TWO different threads (the fetcher thread via loadTownsData()'s
+        // captured->annexed transition loop, and the chat thread via liberateTerritory()).
+        // Without this lock, a chat-driven liberation landing between loadTownsData()'s
+        // protected-set snapshot and its retainAll/addAll can have its removal here
+        // clobbered by that addAll(newCapturedFromJson) — which still lists the territory as
+        // captured whenever the just-fetched towns.json snapshot predates the liberation —
+        // resurrecting a stale occupied diagonal on land that was just liberated/annexed,
+        // for up to one full poll cycle. See occupiedStateLock's javadoc.
+        synchronized (occupiedStateLock) {
+            capturedTerritoryIds.remove(tid);
+            territoryDiagonalColors.remove(tid);
+            chatFlipTimestamps.remove(tid);
+        }
         // The occupied state just ended (annexed or liberated) — any per-chunk war
         // stripes from skirmishes during the siege are now stale; see captureTerritory().
         clearChunkWarState(tid);

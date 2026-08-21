@@ -33,8 +33,10 @@ alongside other servers/modpacks.
   - *Occupied territories* — a diagonal marker across a captured-but-not-yet-annexed
     territory, in the occupier's color, while the base fill still shows the
     original owner.
-  - *Per-chunk war stripes* — a temporary highlight + X-mark on chunks captured
-    within the last 90 seconds.
+  - *Per-chunk war stripes* — a highlight + X-mark on chunks captured this
+    siege, in the capturing nation's color. Stays until the chunk changes
+    hands again, the whole territory is captured/annexed, or a several-hour
+    backstop timeout.
   - *Under-attack stripes* — a diagonal on chunks with a flag currently planted.
 - All of the above are individually toggleable and opacity/width-adjustable via
   [Mod Menu](https://modrinth.com/mod/modmenu) / [Cloth Config](https://modrinth.com/mod/cloth-config).

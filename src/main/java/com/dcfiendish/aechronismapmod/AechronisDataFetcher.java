@@ -56,8 +56,15 @@ public class AechronisDataFetcher {
             scheduler.schedule(this::fetchWorldAndTerritories, 2, TimeUnit.SECONDS);
             scheduler.schedule(this::fetchBuildings, 3, TimeUnit.SECONDS);
         }
+        // Initial delay is 3s, not 5 — 1s after fetchWorldAndTerritories() below starts (at
+        // 2s), so ownership still paints promptly post-join. Safe regardless of how long the
+        // world.json fetch actually takes: the scheduler is single-threaded, so this task
+        // simply queues behind fetchWorldAndTerritories() if it's still running when 3s
+        // arrives, and territoryChunkMap is guaranteed populated by the time this runs either
+        // way (loadTownsData() also no-ops defensively if it somehow isn't — see its
+        // territoryChunkMap.isEmpty() check).
         if (townsPollFuture == null || townsPollFuture.isCancelled()) {
-            townsPollFuture = scheduler.scheduleAtFixedRate(this::fetchTownsJson, 5, 60, TimeUnit.SECONDS);
+            townsPollFuture = scheduler.scheduleAtFixedRate(this::fetchTownsJson, 3, 60, TimeUnit.SECONDS);
         }
         // war.json is polled far more often than towns.json (every 15s vs. every 60s):
         // it's a periodic reconciliation for underAttackChunks (chunks with a flag
@@ -105,18 +112,23 @@ public class AechronisDataFetcher {
     // fetch (network not fully up 2s post-join, a momentary map-server hiccup) would leave
     // borders and chunk fills permanently empty for the rest of the session, even though
     // labels keep working fine off the recurring towns.json poll.
+    //
+    // Deliberately does NOT also fetch towns.json (it used to, for a faster first paint) —
+    // that duplicated the fetch+Gson-parse of a large JSON file every single join, ~3s before
+    // fetchTownsJson()'s own first poll ran anyway. The poll's initial delay (see
+    // onJoinAechronis above) is tuned to start shortly after this method's fetch begins
+    // instead, so ownership still paints promptly without the double fetch. Retrying only
+    // world.json here also keeps this method's own retry from re-fetching towns.json on a
+    // transient world.json-only failure.
     private static final long WORLD_FETCH_RETRY_DELAY_SECONDS = 10;
 
     private void fetchWorldAndTerritories() {
         try {
-            LOGGER.info("Fetching world.json and towns.json for territory data...");
+            LOGGER.info("Fetching world.json for territory geometry...");
             String worldStr = fetch(WORLD_URL);
-            String townsStr = fetch(TOWNS_URL);
             JsonObject worldJson = JsonParser.parseString(worldStr).getAsJsonObject();
-            JsonObject townsJson = JsonParser.parseString(townsStr).getAsJsonObject();
             mapData.loadWorldData(worldJson);
-            mapData.loadTownsData(townsJson, townsStr);
-            LOGGER.info("World and territory data loaded.");
+            LOGGER.info("World geometry loaded.");
         } catch (Throwable e) {
             // Must catch Throwable, not just Exception: world.json is currently ~16MB, and
             // parsing that into a full Gson tree is a real OutOfMemoryError risk on a client
@@ -163,7 +175,7 @@ public class AechronisDataFetcher {
         try {
             String json = fetch(TOWNS_URL);
             JsonObject townsJson = JsonParser.parseString(json).getAsJsonObject();
-            mapData.loadTownsData(townsJson, json);
+            mapData.loadTownsData(townsJson);
         } catch (Throwable e) {
             LOGGER.warn("Towns fetch error: {}", e.getMessage());
         }

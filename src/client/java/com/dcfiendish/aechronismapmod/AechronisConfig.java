@@ -17,8 +17,10 @@ public class AechronisConfig implements ConfigData {
     public int nationFillOpacity = 39;
     public float occupiedDiagonalWidth = 0.14f;
     // Per-chunk war visuals (Version B): distinct from the occupied diagonal above,
-    // which is territory-level. War stripes mark chunks captured in the last 90s
-    // (solid fill + X); under-attack stripes mark chunks with a flag currently planted.
+    // which is territory-level. War stripes mark chunks captured this siege (solid fill
+    // + X) — they persist until superseded (recaptured, or the whole node is
+    // captured/annexed), not on a short timer; see AechronisRenderer.WAR_CHUNK_TIMEOUT_MS
+    // for the long backstop. Under-attack stripes mark chunks with a flag currently planted.
     public float warStripeWidth = 0.105f;
     public float underAttackStripeWidth = 0.14f;
     public boolean showWarStripes = true;

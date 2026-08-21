@@ -18,7 +18,7 @@
   "text.autoconfig.aechronismapmod.option.occupiedDiagonalWidth.tooltip": "Line width of the diagonal marking captured (occupied-but-not-annexed) TERRITORIES (whole nodes), drawn in the occupier's nation color",
 
   "text.autoconfig.aechronismapmod.option.showWarStripes": "Show War Stripes",
-  "text.autoconfig.aechronismapmod.option.showWarStripes.tooltip": "Toggle the X-stripe marker on individual CHUNKS captured within the last 90 seconds, drawn in the capturing nation's color",
+  "text.autoconfig.aechronismapmod.option.showWarStripes.tooltip": "Toggle the X-stripe marker on individual CHUNKS captured this siege, drawn in the capturing nation's color. Stays until the chunk changes hands again, the whole node is captured/annexed, or a several-hour backstop timeout",
   "text.autoconfig.aechronismapmod.option.warStripeWidth": "War Stripe Width",
   "text.autoconfig.aechronismapmod.option.warStripeWidth.tooltip": "Line width of the post-capture chunk war stripe",
 

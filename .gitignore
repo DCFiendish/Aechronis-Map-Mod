@@ -32,6 +32,9 @@ bin/
 
 run/
 
+# local Minecraft client logs (present when this repo doubles as a run dir)
+logs/
+
 # java
 
 hs_err_*.log

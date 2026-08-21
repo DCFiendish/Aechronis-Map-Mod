@@ -82,10 +82,14 @@ public class AechronisRenderer extends Module {
     // Train routes/labels — cached the same way, rebuilt when mapData.trainStations/
     // trainRouteLines size changes (they're fetched once, so this is effectively a
     // one-time build per join, same cadence as the building markers above).
+    // Keyed off mapData.trainsVersion, not list size — trains.json IS re-polled every 10
+    // minutes (unlike buildings/ports, fetched once), so a size-only check would miss a
+    // station's tier/banned flag/position changing (or a route's endpoint moving) whenever
+    // the total station/route COUNT stays the same, leaving these caches stale forever.
     private Long2ObjectOpenHashMap<Text> cachedTrainStationTexts = new Long2ObjectOpenHashMap<>();
-    private int lastTrainStationTextCount = -1;
+    private long lastTrainStationTextVersion = -1;
     private Object2IntOpenHashMap<Line> cachedTrainRouteLines = new Object2IntOpenHashMap<>();
-    private int lastTrainRouteLineCount = -1;
+    private long lastTrainRouteLineVersion = -1;
 
     // Track last config state to detect changes
     private boolean lastWhiteBorders = false;
@@ -142,10 +146,12 @@ public class AechronisRenderer extends Module {
                 )
         );
         // Per-chunk war visuals (Version B) — distinct from the territory-level occupied
-        // diagonal above. WarChunks/WarStripes mark chunks captured within the last 90s
-        // (solid recolor + X); UnderAttackStripes marks chunks with a flag currently
-        // planted (single diagonal in the attacker's nation color). Driven by
-        // AechronisMapData.warChunks/underAttackChunks, populated by AechronisChatListener.
+        // diagonal above. WarChunks/WarStripes mark chunks captured this siege (solid
+        // recolor + X), persisting until superseded or the long WAR_CHUNK_TIMEOUT_MS
+        // backstop below (NOT a short 90s timer — see that constant's own doc);
+        // UnderAttackStripes marks chunks with a flag currently planted (single diagonal
+        // in the attacker's nation color). Driven by AechronisMapData.warChunks/
+        // underAttackChunks, populated by AechronisChatListener.
         ourFeatures.add(
                 DrawFeatureFactory.multiColorChunkHighlights(
                         "AechronisWarChunks",
@@ -546,9 +552,9 @@ public class AechronisRenderer extends Module {
         if (!cfg.showTrainStationLabels) return new Long2ObjectOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Long2ObjectOpenHashMap<>();
 
-        if (mapData.trainStations.size() != lastTrainStationTextCount) {
+        if (mapData.trainsVersion != lastTrainStationTextVersion) {
             rebuildTrainStationTextsCache();
-            lastTrainStationTextCount = mapData.trainStations.size();
+            lastTrainStationTextVersion = mapData.trainsVersion;
         }
         return cachedTrainStationTexts;
     }
@@ -574,9 +580,9 @@ public class AechronisRenderer extends Module {
         if (!cfg.showTrainRoutes) return new Object2IntOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Object2IntOpenHashMap<>();
 
-        if (mapData.trainRouteLines.size() != lastTrainRouteLineCount) {
+        if (mapData.trainsVersion != lastTrainRouteLineVersion) {
             rebuildTrainRouteLinesCache();
-            lastTrainRouteLineCount = mapData.trainRouteLines.size();
+            lastTrainRouteLineVersion = mapData.trainsVersion;
         }
         return cachedTrainRouteLines;
     }

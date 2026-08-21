@@ -82,7 +82,6 @@ public class AechronisChatListener {
 
     private void handleMessage(Component message) {
         String text = message.getString().replaceAll("\u00a7[0-9a-fk-orA-FK-OR]", "");
-        AechronisWarCapture.logChatLine(text); // no-op unless AechronisWarCapture.ENABLED
         if (!text.contains("[War]")) return;
         // This listener registers unconditionally on every server the client connects
         // to, not just Aechronis \u2014 reuse the same "is the Aechronis-gated renderer

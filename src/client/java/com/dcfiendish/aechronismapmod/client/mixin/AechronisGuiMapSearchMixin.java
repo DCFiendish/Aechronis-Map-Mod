@@ -47,7 +47,9 @@ public class AechronisGuiMapSearchMixin {
         int screenWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
         int boxWidth = 200;
         int x = (screenWidth - boxWidth) / 2;
-        AechronisSearchBox box = new AechronisSearchBox(Minecraft.getInstance().font, x, 4, boxWidth, 16);
+        // y=20, not the top edge (4) — Xaero's World Map draws its coords HUD centered at
+        // the very top of the screen, and the search box at y=4 sat directly on top of it.
+        AechronisSearchBox box = new AechronisSearchBox(Minecraft.getInstance().font, x, 20, boxWidth, 16);
         this.addRenderableWidget(box);
     }
 }
