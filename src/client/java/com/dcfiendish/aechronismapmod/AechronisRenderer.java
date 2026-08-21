@@ -36,6 +36,24 @@ public class AechronisRenderer extends Module {
     // opacity is only user-adjustable for the nation fill (see AechronisConfig).
     private static final int  FULL_ALPHA            = 255;
 
+    // ── Label/line decluttering (tiered by zoom) ────────────────────────────
+    // wSize (passed into every text/line getter below) is XaeroPlus's own region-radius
+    // for the current view — xaeroplus.util.GuiMapHelper.getGuiMapRegionSize() on the
+    // world map (max(5/destScale, 3), so it GROWS as you zoom out) and
+    // max(3, Globals.minimapScaleMultiplier) on the minimap — so it's already exactly the
+    // zoom signal needed here, no new plumbing required. Each getter below returns empty
+    // once wSize exceeds its tier's threshold, so that category disappears at that zoom
+    // level; the underlying content cache is untouched, so zooming back in is instant.
+    // Ordered so the busiest/least-critical-at-a-glance layer disappears first:
+    // resource labels -> node borders -> train station labels -> town labels, with nation
+    // labels never gated (there are always few enough of them not to clutter).
+    // Starting values only — picked for reasonable spacing, not measured against the live
+    // map; tune in-game and adjust once real zoom levels have been checked.
+    private static final int RESOURCE_LABEL_MAX_WSIZE = 6;
+    private static final int NODE_BORDER_MAX_WSIZE    = 10;
+    private static final int TRAIN_LABEL_MAX_WSIZE     = 16;
+    private static final int TOWN_LABEL_MAX_WSIZE      = 28;
+
     // Timeouts for per-chunk war visuals (Version B).
     //
     // War chunks (solid recolor + X stripe on a captured chunk) are a "recent activity"
@@ -299,12 +317,14 @@ public class AechronisRenderer extends Module {
         return (int) value;
     }
 
-    // ---- Node borders — uniform color (default or white), cached on data/config change ----
+    // ---- Node borders — uniform color (default or white), cached on data/config change.
+    // Second tier to disappear when zooming out — see the decluttering block above. ----
     private Object2IntMap<Line> getNodeBorders(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Object2IntOpenHashMap<>();
         if (!cfg.showNodeBorders) return new Object2IntOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Object2IntOpenHashMap<>();
+        if (wSize > NODE_BORDER_MAX_WSIZE) return new Object2IntOpenHashMap<>();
 
         boolean white = cfg.whiteBorders;
         if (mapData.dataVersion != lastNodeBorderVersion || white != lastWhiteBorders || mapData.nodeBorderLines.size() != lastNodeBorderCount) {
@@ -421,12 +441,16 @@ public class AechronisRenderer extends Module {
         return result;
     }
 
-    // ---- Node labels — plain text, uniform color, cached on data change ----
+    // ---- Node labels (resource-type text — see AechronisMapData.loadTownsData()'s
+    // "basic" filter, nodes without a real resource never get one of these) — plain text,
+    // uniform color, cached on data change. First tier to disappear when zooming out —
+    // see the decluttering block above. ----
     private Long2ObjectOpenHashMap<Text> getNodeTexts(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Long2ObjectOpenHashMap<>();
         if (!cfg.showNodeLabels) return new Long2ObjectOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Long2ObjectOpenHashMap<>();
+        if (wSize > RESOURCE_LABEL_MAX_WSIZE) return new Long2ObjectOpenHashMap<>();
 
         if (mapData.dataVersion != lastNodeLabelVersion || mapData.nodeLabelInfos.size() != lastLabelCount) {
             rebuildNodeTextsCache();
@@ -448,12 +472,15 @@ public class AechronisRenderer extends Module {
         cachedNodeTexts = newCache;
     }
 
-    // ---- Town labels — plain text showing town name, separate toggle from node labels ----
+    // ---- Town labels — plain text showing town name, separate toggle from node labels.
+    // Fourth (last gated) tier to disappear when zooming out — see the decluttering block
+    // above; nation labels below it are never gated. ----
     private Long2ObjectOpenHashMap<Text> getTownTexts(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Long2ObjectOpenHashMap<>();
         if (!cfg.showTownLabels) return new Long2ObjectOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Long2ObjectOpenHashMap<>();
+        if (wSize > TOWN_LABEL_MAX_WSIZE) return new Long2ObjectOpenHashMap<>();
 
         if (mapData.dataVersion != lastTownLabelVersion || mapData.townLabelInfos.size() != lastTownLabelCount) {
             rebuildTownTextsCache();
@@ -473,7 +500,9 @@ public class AechronisRenderer extends Module {
         cachedTownTexts = newCache;
     }
 
-    // ---- Nation labels — bigger text than node/town labels, at nation capital (offset) ----
+    // ---- Nation labels — bigger text than node/town labels, at nation capital (offset).
+    // Deliberately NOT gated by wSize — there are always few enough nations that this
+    // layer alone was never the clutter problem the tiers above address. ----
     private static final float NATION_LABEL_SCALE = 0.9f;
     private Long2ObjectOpenHashMap<Text> getNationTexts(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
@@ -546,12 +575,14 @@ public class AechronisRenderer extends Module {
         cachedBuildingMarkers = newCache;
     }
 
-    // ---- Train station labels — id + tier + banned flag ----
+    // ---- Train station labels — id + tier + banned flag. Third tier to disappear when
+    // zooming out — see the decluttering block above. ----
     private Long2ObjectOpenHashMap<Text> getTrainStationTexts(int wx, int wz, int wSize, ResourceKey<Level> dimension) {
         AechronisConfig cfg = AechronisConfig.get();
         if (!cfg.showEverything) return new Long2ObjectOpenHashMap<>();
         if (!cfg.showTrainStationLabels) return new Long2ObjectOpenHashMap<>();
         if (dimension != ChunkUtils.getActualDimension()) return new Long2ObjectOpenHashMap<>();
+        if (wSize > TRAIN_LABEL_MAX_WSIZE) return new Long2ObjectOpenHashMap<>();
 
         if (mapData.trainsVersion != lastTrainStationTextVersion) {
             rebuildTrainStationTextsCache();
