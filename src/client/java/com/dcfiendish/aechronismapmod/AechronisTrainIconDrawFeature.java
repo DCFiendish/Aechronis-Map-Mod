@@ -61,12 +61,12 @@ public class AechronisTrainIconDrawFeature implements DrawFeature {
 
     private final String id;
     private final AechronisMapData mapData;
-    private final int halfSize;
+    private final int baseHalfSize;
 
-    public AechronisTrainIconDrawFeature(String id, AechronisMapData mapData, int halfSize) {
+    public AechronisTrainIconDrawFeature(String id, AechronisMapData mapData, int baseHalfSize) {
         this.id = id;
         this.mapData = mapData;
-        this.halfSize = halfSize;
+        this.baseHalfSize = baseHalfSize;
     }
 
     @Override
@@ -80,14 +80,19 @@ public class AechronisTrainIconDrawFeature implements DrawFeature {
         if (!cfg.showEverything || !cfg.showTrainStationIcons) return;
         if (mapData.trainStations.isEmpty()) return;
 
+        // Recomputed every frame (not cached) — trainStationIconSize is a live cloth-config
+        // slider, so this needs to reflect config-screen changes immediately, same as every
+        // other width/opacity value read via AechronisConfig.get() elsewhere in the mod.
+        int halfSize = Math.max(1, Math.round(baseHalfSize * cfg.trainStationIconSize));
+
         if (ctx.worldmap()) {
-            renderWorldMap(ctx);
+            renderWorldMap(ctx, halfSize);
         } else {
-            renderMinimap(ctx);
+            renderMinimap(ctx, halfSize);
         }
     }
 
-    private void renderMinimap(DrawContext ctx) {
+    private void renderMinimap(DrawContext ctx, int halfSize) {
         int size = halfSize * 2;
         MinimapElementGraphics graphics = new MinimapElementGraphics(ctx.matrixStack());
         for (AechronisMapData.TrainStationInfo s : mapData.trainStations) {
@@ -101,7 +106,7 @@ public class AechronisTrainIconDrawFeature implements DrawFeature {
     // pattern exactly (long-precision camera diff narrowed to float, fresh Matrix4f off
     // ctx.untranslatedMapViewMatrix() every frame, explicit endBatch() before returning)
     // so the icon can never end up a frame behind the station label it's paired with.
-    private void renderWorldMap(DrawContext ctx) {
+    private void renderWorldMap(DrawContext ctx, int halfSize) {
         VertexConsumer vertexConsumer = ctx.renderTypeBuffers().getBuffer(WORLD_MAP_ICON_RENDER_TYPE);
         for (AechronisMapData.TrainStationInfo s : mapData.trainStations) {
             float relativeX = (float) ((long) s.x - ctx.cameraBlockX());

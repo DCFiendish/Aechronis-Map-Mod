@@ -54,6 +54,9 @@
   "text.autoconfig.aechronismapmod.option.trainRouteLineWidth": "Train Route Line Width",
   "text.autoconfig.aechronismapmod.option.trainRouteLineWidth.tooltip": "Line width of train route lines",
 
+  "text.autoconfig.aechronismapmod.option.trainStationIconSize": "Train Station Icon Size",
+  "text.autoconfig.aechronismapmod.option.trainStationIconSize.tooltip": "Size of the train station minecart icon, as a multiplier of the default size (1.0 = default, smaller values shrink it)",
+
   "key.category.aechronismapmod.general": "Aechronis Nation Overlay",
   "key.aechronismapmod.toggle_node_labels": "Toggle Node Labels",
   "key.aechronismapmod.toggle_town_labels": "Toggle Town Labels",

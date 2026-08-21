@@ -29,7 +29,8 @@ public class AechronisRenderer extends Module {
     // Train station icon half-size in world blocks (see AechronisTrainIconDrawFeature) — a
     // filled textured icon reads clearly at a smaller size than the hollow building ring
     // above, so this starts smaller than BUILDING_MARKER_RADIUS; tune after in-game check.
-    private static final int   TRAIN_ICON_HALF_SIZE       = 12;
+    // Scaled live by AechronisConfig.trainStationIconSize (see AechronisTrainIconDrawFeature).
+    public static final int   TRAIN_ICON_BASE_HALF_SIZE  = 12;
     private static final int   TRAIN_ROUTE_COLOR          = 0x808080; // neutral rail gray
     // Every overlay element except the nation fill renders fully opaque, always —
     // opacity is only user-adjustable for the nation fill (see AechronisConfig).
@@ -242,7 +243,7 @@ public class AechronisRenderer extends Module {
         // same as the building markers' ellipse+label pairing). See
         // AechronisTrainIconDrawFeature's class doc for the rendering approach.
         ourFeatures.add(
-                new AechronisTrainIconDrawFeature("AechronisTrainStationIcons", mapData, TRAIN_ICON_HALF_SIZE)
+                new AechronisTrainIconDrawFeature("AechronisTrainStationIcons", mapData, TRAIN_ICON_BASE_HALF_SIZE)
         );
     }
 

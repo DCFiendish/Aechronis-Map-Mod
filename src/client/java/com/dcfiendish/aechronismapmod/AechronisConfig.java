@@ -41,6 +41,8 @@ public class AechronisConfig implements ConfigData {
     public boolean showTrainRoutes = true;
     public boolean showTrainStationIcons = true;
     public float trainRouteLineWidth = 0.14f;
+    // Scales AechronisRenderer.TRAIN_ICON_BASE_HALF_SIZE; 1.0 = default size.
+    public float trainStationIconSize = 1.0f;
 
     // ── Chunk Border Relation Colors (F3+G) ─────────────────────
     public boolean autoChunkBorders = true;
